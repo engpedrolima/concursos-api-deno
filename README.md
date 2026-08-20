@@ -53,6 +53,17 @@ do importador registra qual parser produziu o conteúdo, sem substituir a versã
 do schema. O fluxo `--dry-run` valida e exibe exatamente esse envelope, sem abrir
 banco de dados nem gravar arquivo.
 
+## Banco local
+
+Inicialize ou atualize o schema com `deno task db:init`. Por padrão, o SQLite
+fica em `data/concursos.sqlite3`, caminho ignorado pelo Git. Para escolher outro
+arquivo, use `deno task db:init -- --database caminho/estudo.sqlite3`.
+
+Todas as conexões ativam chaves estrangeiras e todas as datas persistidas usam
+UTC no formato ISO 8601 `YYYY-MM-DDTHH:mm:ss.sssZ`. As migrações e constraints
+podem ser verificadas com `deno task test`; os testes criam apenas bancos
+temporários.
+
 ## Adicionar uma banca ou órgão
 
 Não há descoberta automática de URLs: ela tende a trazer fontes não autorizadas.
