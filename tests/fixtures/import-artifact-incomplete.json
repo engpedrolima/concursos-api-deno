@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "importerVersion": "1.0.0",
+  "exam": {
+    "id": "prova-sintetica-2026",
+    "organizer": "Banca Sintética",
+    "year": 2026
+  },
+  "documents": {
+    "booklet": {
+      "url": "https://banca.example/caderno-sintetico.pdf",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "collectedAt": "2026-08-20T12:00:00.000Z"
+    }
+  },
+  "questions": [],
+  "rejected": [],
+  "diagnostics": {
+    "questionHeaders": 0,
+    "multipleChoiceCandidates": 0,
+    "certoErradoCandidates": 0,
+    "bookletCharacters": 0,
+    "answerKeyCharacters": 0
+  }
+}

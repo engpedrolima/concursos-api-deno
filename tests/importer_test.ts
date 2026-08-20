@@ -60,6 +60,17 @@ Deno.test("interpreta fixtures locais e rejeita anulada e gabarito ambíguo", as
   assertEquals(result.questions[0].provenance.exam.id, identity.id);
   assertMatch(result.questions[0].provenance.pdfSha256, /^[a-f0-9]{64}$/);
   assertEquals(result.rejected.length, 2);
+  assertEquals(result.schemaVersion, 1);
+  assertEquals(result.importerVersion, "1.0.0");
+  assertEquals(result.exam.id, identity.id);
+  assertEquals(
+    result.documents.booklet.url,
+    "https://banca.gov.br/caderno.pdf",
+  );
+  assertEquals(
+    result.documents.answerKey.url,
+    "https://banca.gov.br/gabarito.pdf",
+  );
 });
 
 Deno.test("recusa URL não oficial antes da requisição", async () => {

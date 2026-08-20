@@ -36,8 +36,22 @@ deno task import -- --dry-run \
 ```
 
 Para produzir um artefato local revisável, acrescente `--output importacao.json`
-e remova `--dry-run`. Revise o relatório e faça a persistência em sua base por
-um processo separado e auditado.
+e remova `--dry-run`. O arquivo só é gravado depois da validação integral do
+contrato. Revise o relatório e faça a persistência em sua base por um processo
+separado e auditado.
+
+## Artefato de importação
+
+O JSON produzido usa um envelope versionado com `schemaVersion: 1`, a versão do
+parser/importador, a identidade completa da prova e os documentos rotulados como
+`booklet` e `answerKey`. Cada documento preserva URL, SHA-256 e data de coleta.
+O envelope também contém `questions`, `rejected` e `diagnostics`.
+
+`schemaVersion` define a compatibilidade estrutural; versões desconhecidas ou
+artefatos incompletos são rejeitados com a indicação do campo inválido. A versão
+do importador registra qual parser produziu o conteúdo, sem substituir a versão
+do schema. O fluxo `--dry-run` valida e exibe exatamente esse envelope, sem abrir
+banco de dados nem gravar arquivo.
 
 ## Adicionar uma banca ou órgão
 

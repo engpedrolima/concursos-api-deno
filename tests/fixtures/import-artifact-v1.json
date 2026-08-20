@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "importerVersion": "1.0.0",
+  "exam": {
+    "id": "prova-sintetica-2026",
+    "organizer": "Banca Sintética",
+    "year": 2026,
+    "role": "Analista",
+    "subject": "Conhecimentos Gerais"
+  },
+  "documents": {
+    "booklet": {
+      "url": "https://banca.example/caderno-sintetico.pdf",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "collectedAt": "2026-08-20T12:00:00.000Z"
+    },
+    "answerKey": {
+      "url": "https://banca.example/gabarito-sintetico.pdf",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "collectedAt": "2026-08-20T12:00:01.000Z"
+    }
+  },
+  "questions": [
+    {
+      "number": 1,
+      "statement": "Qual alternativa identifica este conteúdo sintético?",
+      "alternatives": {
+        "A": "Primeira opção",
+        "B": "Segunda opção"
+      },
+      "answer": "B",
+      "organizer": "Banca Sintética",
+      "year": 2026,
+      "role": "Analista",
+      "subject": "Conhecimentos Gerais",
+      "provenance": {
+        "sourceUrl": "https://banca.example/caderno-sintetico.pdf",
+        "collectedAt": "2026-08-20T12:00:00.000Z",
+        "pdfSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "exam": {
+          "id": "prova-sintetica-2026",
+          "organizer": "Banca Sintética",
+          "year": 2026,
+          "role": "Analista",
+          "subject": "Conhecimentos Gerais"
+        }
+      }
+    }
+  ],
+  "rejected": [
+    "Questão 2: anulada"
+  ],
+  "diagnostics": {
+    "questionHeaders": 2,
+    "multipleChoiceCandidates": 2,
+    "certoErradoCandidates": 0,
+    "bookletCharacters": 120,
+    "answerKeyCharacters": 12
+  }
+}

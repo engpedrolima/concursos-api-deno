@@ -1,5 +1,12 @@
+import {
+  assertImportArtifact,
+  IMPORT_ARTIFACT_SCHEMA_VERSION,
+  type ImportArtifact,
+  IMPORTER_VERSION,
+} from "./artifact.ts";
 import { buildQuestions, type ParseDiagnostics } from "./parser.ts";
 import type {
+  ExamIdentity,
   ImportedQuestion,
   OfficialSource,
   PdfTextExtractor,
@@ -11,6 +18,11 @@ const sha256 = async (data: Uint8Array) =>
       await crypto.subtle.digest("SHA-256", data as unknown as BufferSource),
     ),
   ).map((value) => value.toString(16).padStart(2, "0")).join("");
+
+const sameExam = (left: ExamIdentity, right: ExamIdentity) =>
+  left.id === right.id && left.organizer === right.organizer &&
+  left.year === right.year && left.role === right.role &&
+  left.subject === right.subject;
 
 /** Signals a parser mismatch without retaining or printing extracted PDF text. */
 export class NoQuestionsRecognizedError extends Error {
@@ -34,13 +46,13 @@ export async function importOfficialQuestions(
 export async function importDocuments(
   documents: Awaited<ReturnType<OfficialSource["fetch"]>>,
   extractor: PdfTextExtractor,
-) {
+): Promise<ImportArtifact> {
   const booklet = documents.find((doc) => doc.kind === "question-booklet");
   const answerKey = documents.find((doc) => doc.kind === "final-answer-key");
   if (!booklet || !answerKey) {
     throw new Error("São obrigatórios caderno de prova e gabarito definitivo.");
   }
-  if (booklet.identity.id !== answerKey.identity.id) {
+  if (!sameExam(booklet.identity, answerKey.identity)) {
     throw new Error("Os documentos pertencem a provas diferentes.");
   }
   const [bookletText, answerKeyText, bookletHash, keyHash] = await Promise.all([
@@ -62,13 +74,26 @@ export async function importDocuments(
       exam: booklet.identity,
     },
   }));
-  return {
+  const artifact: ImportArtifact = {
+    schemaVersion: IMPORT_ARTIFACT_SCHEMA_VERSION,
+    importerVersion: IMPORTER_VERSION,
+    exam: booklet.identity,
+    documents: {
+      booklet: {
+        url: booklet.url,
+        sha256: bookletHash,
+        collectedAt: booklet.collectedAt,
+      },
+      answerKey: {
+        url: answerKey.url,
+        sha256: keyHash,
+        collectedAt: answerKey.collectedAt,
+      },
+    },
     questions,
     rejected: parsed.rejected,
     diagnostics: parsed.diagnostics,
-    documents: [{ url: booklet.url, sha256: bookletHash }, {
-      url: answerKey.url,
-      sha256: keyHash,
-    }],
   };
+  assertImportArtifact(artifact);
+  return artifact;
 }
