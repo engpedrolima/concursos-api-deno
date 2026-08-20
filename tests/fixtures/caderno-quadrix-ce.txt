@@ -1,0 +1,9 @@
+ITEM 1
+Julgue o item a seguir, relativo a administração pública.
+Certo
+Errado
+
+ITEM 2
+Julgue o item a seguir, relativo a ética no serviço público.
+Certo
+Errado

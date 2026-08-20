@@ -1,68 +1,65 @@
-# API de Concursos Públicos do Brasil (Versão Deno)
+# Importador rastreável de questões de concursos
 
-Uma API para consultar concursos públicos abertos e previstos por estado, com dados atualizados a cada 1 hora.
+Este projeto importa questões apenas a partir de um **caderno de prova** e de um
+**gabarito definitivo**, ambos em PDF público e hospedados no site oficial da
+banca ou do órgão. Não usa login, CAPTCHA, scraping de bancos de questões de
+terceiros, nem contorna bloqueios.
 
-## Apresentação
+## Garantias de segurança e qualidade
 
-Esta API foi desenvolvida para fornecer acesso programático e atualizado a informações sobre concursos públicos no Brasil. Os dados são extraídos do site [Concursos no Brasil](https://concursosnobrasil.com/) e atualizados a cada hora, garantindo que você sempre tenha acesso às informações mais recentes.
+- A origem é uma URL HTTPS cujo domínio precisa ser informado explicitamente
+  como oficial (`--official-host`).
+- O download tem timeout de 20 s, no máximo duas tentativas, até três
+  redirecionamentos validados e intervalo mínimo de 1 s entre requisições. Cada
+  PDF é limitado a 25 MiB. Não há cookies, autenticação ou bypass.
+- A importação exige os dois documentos para a mesma prova e valida o tipo PDF.
+- Cada questão retém URL do caderno, data de coleta, SHA-256 do PDF e
+  identificação da prova. O SHA-256 do gabarito também integra o relatório.
+- Questões anuladas, sem enunciado/alternativas suficientes, sem gabarito ou com
+  gabarito conflitante são rejeitadas.
+- `--dry-run` é o fluxo recomendado: apenas mostra o JSON e não grava nada. Não
+  há integração com base de dados.
 
-A API foi construída com [Deno](https://deno.land/), um ambiente de execução moderno e seguro para JavaScript e TypeScript.
+## Executar
 
-## Como Usar
-
-A documentação completa da API está disponível na rota principal:
-
-- `http://localhost:8000/`
-
-Para consultar os concursos de um estado específico, acesse a rota `/{UF}`. Por exemplo, para consultar os concursos de São Paulo, acesse:
-
-- `http://localhost:8000/sp`
-
-## Instalação e Execução
-
-### Pré-requisitos
-
-- [Deno](https://deno.land/) instalado.
-
-### Execução
-
-1.  **Clone o repositório:**
-
-    ```bash
-    git clone https://github.com/seu-usuario/concursos-api-deno.git
-    cd concursos-api-deno
-    ```
-
-2.  **Inicie o servidor com o comando:**
-
-    ```bash
-    deno task start
-    ```
-
-    O Deno irá baixar e cachear as dependências automaticamente. A flag `--allow-net` é necessária para permitir que a aplicação acesse a internet.
-
-## Contribuição
-
-Contribuições são bem-vindas! Se você deseja melhorar esta API, siga os passos abaixo:
-
-1.  **Faça um fork do projeto.**
-2.  **Crie uma nova branch para sua feature:** `git checkout -b minha-feature`
-3.  **Faça suas alterações e commit:** `git commit -m 'feat: Adiciona nova feature'`
-4.  **Envie para sua branch:** `git push origin minha-feature`
-5.  **Abra um Pull Request.**
-
-### A Importância dos Testes
-
-Para garantir a qualidade e a estabilidade da API, é fundamental que todas as contribuições sejam acompanhadas de testes. Os testes garantem que as novas funcionalidades não quebram o código existente e que a API se comporta como esperado.
-
-Antes de enviar um Pull Request, certifique-se de que todos os testes estão passando. Para executar os testes, utilize o comando:
+Requer Deno e o utilitário local `pdftotext` (Poppler) para extrair texto sem
+enviar o PDF a terceiros.
 
 ```bash
 deno task test
+deno task import -- --dry-run \
+  --official-host banca.exemplo.gov.br \
+  --booklet https://banca.exemplo.gov.br/arquivos/caderno.pdf \
+  --answer-key https://banca.exemplo.gov.br/arquivos/gabarito-definitivo.pdf \
+  --exam-id orgao-2025-analista-tipo-1 \
+  --organizer "Banca Exemplo" --year 2025 --role "Analista"
 ```
 
-Este comando irá executar todos os testes do projeto e garantir que suas alterações não introduziram nenhum erro.
+Para produzir um artefato local revisável, acrescente `--output importacao.json`
+e remova `--dry-run`. Revise o relatório e faça a persistência em sua base por
+um processo separado e auditado.
 
-## Licença
+## Adicionar uma banca ou órgão
 
-Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Não há descoberta automática de URLs: ela tende a trazer fontes não autorizadas.
+Para adicionar uma fonte recorrente, implemente `OfficialSource` em
+`importer/sources.ts` (ou novo arquivo):
+
+1. aceite somente URLs publicadas pela banca/órgão e valide uma lista explícita
+   de hosts oficiais;
+2. devolva exatamente um `question-booklet` e um `final-answer-key` com a mesma
+   `ExamIdentity`;
+3. reutilize `PoliteHttpClient`, sem credenciais e sem mecanismos de contorno;
+4. registre a fonte no comando de importação e cubra-a com fixtures locais em
+   `tests/fixtures/`.
+
+O parser atual trata o formato textual mais comum (`QUESTÃO n`, alternativas A–E
+e linhas `n - letra`). Ajustes específicos de uma banca devem permanecer
+conservadores: se não for possível determinar uma questão ou resposta de modo
+unívoco, rejeite-a.
+
+## API
+
+`deno task start` expõe apenas um endpoint de saúde. A antiga coleta de um
+agregador de concursos foi removida para não contrariar a política de fontes
+oficiais.

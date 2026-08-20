@@ -1,16 +1,5 @@
 {
   "version": "5",
-  "specifiers": {
-    "npm:poku@*": "3.0.2",
-    "npm:poku@3.0.2": "3.0.2",
-    "npm:poku@^3.0.2": "3.0.2"
-  },
-  "npm": {
-    "poku@3.0.2": {
-      "integrity": "sha512-vwNcV5Y+gEhq1Sxw34HTZ4rTudg7LgaEoyZ4m7CXH/k9JKTTwwnj9fZGrstbEBR2e2TCroNHqt6cVGBAg6zkAA==",
-      "bin": true
-    }
-  },
   "remote": {
     "https://deno.land/std@0.200.0/_util/os.ts": "d932f56d41e4f6a6093d56044e29ce637f8dcc43c5a90af43504a889cf1775e3",
     "https://deno.land/std@0.200.0/assert/assert.ts": "9a97dad6d98c238938e7540736b826440ad8c1c1e54430ca4c4e623e585607ee",
@@ -213,10 +202,5 @@
     "https://deno.land/x/oak@v12.6.1/testing.ts": "37d684d57bb8e5150fb5eb2677e66b04dcb422709cf2c5a74c1df94d52aa02e2",
     "https://deno.land/x/oak@v12.6.1/util.ts": "0a3fdffb114859c2de84e1783efa3a544af4d2af8c6f08e0d25655de9d3e69bb",
     "https://deno.land/x/path_to_regexp@v6.2.1/index.ts": "894060567837bae8fc9c5cbd4d0a05e9024672083d5883b525c031eea940e556"
-  },
-  "workspace": {
-    "dependencies": [
-      "npm:poku@^3.0.2"
-    ]
   }
 }
