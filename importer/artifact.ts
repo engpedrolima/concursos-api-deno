@@ -228,6 +228,12 @@ export function assertImportArtifact(
   diagnostics(artifact.diagnostics);
 }
 
+/** Valida e devolve o artefato tipado sem modificá-lo. */
+export function validateImportArtifact(value: unknown): ImportArtifact {
+  assertImportArtifact(value);
+  return value;
+}
+
 export function parseImportArtifact(json: string): ImportArtifact {
   let value: unknown;
   try {
@@ -239,6 +245,5 @@ export function parseImportArtifact(json: string): ImportArtifact {
       }`,
     );
   }
-  assertImportArtifact(value);
-  return value;
+  return validateImportArtifact(value);
 }

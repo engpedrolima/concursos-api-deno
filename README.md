@@ -64,6 +64,20 @@ UTC no formato ISO 8601 `YYYY-MM-DDTHH:mm:ss.sssZ`. As migrações e constraints
 podem ser verificadas com `deno task test`; os testes criam apenas bancos
 temporários.
 
+O fluxo persistente permanece separado da coleta: primeiro produza e revise o
+JSON com `deno task import -- ... --output importacao.json`; depois valide e
+grave esse artefato com:
+
+```bash
+deno task db:import -- --artifact importacao.json
+# banco alternativo:
+deno task db:import -- --artifact importacao.json --database caminho/estudo.sqlite3
+```
+
+Antes de abrir o banco, `db:import` valida integralmente o contrato v1. A chave
+idempotente é o SHA-256 de `schemaVersion`, `importerVersion`, identidade completa
+da prova e URL, SHA-256 e data de coleta de `booklet` e `answerKey`.
+
 ## Adicionar uma banca ou órgão
 
 Não há descoberta automática de URLs: ela tende a trazer fontes não autorizadas.
