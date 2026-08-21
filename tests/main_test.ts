@@ -11,7 +11,7 @@ const assertEquals = (actual: unknown, expected: unknown) => {
 };
 
 Deno.test("a rota de saúde retorna serviço saudável", async () => {
-  const response = handler(new Request("http://localhost/"));
+  const response = await handler(new Request("http://localhost/"));
   assertEquals(response.status, 200);
   const body = await response.json();
   assertEquals(body.status, "ok");
@@ -19,7 +19,7 @@ Deno.test("a rota de saúde retorna serviço saudável", async () => {
 });
 
 Deno.test("uma rota inexistente retorna 404", async () => {
-  const response = handler(new Request("http://localhost/inexistente"));
+  const response = await handler(new Request("http://localhost/inexistente"));
   assertEquals(response.status, 404);
   const body = await response.json();
   assertEquals(body.error, "Rota não encontrada.");

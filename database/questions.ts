@@ -132,6 +132,14 @@ function filtersSql(filters: QuestionOccurrenceFilters): {
   );
 }
 
+/** Valida filtros e paginação sem consultar o banco. */
+export function validateQuestionOccurrenceFilters(
+  filters: QuestionOccurrenceFilters,
+): void {
+  validatePagination(filters);
+  filtersSql(filters);
+}
+
 const filteredCte = (where: string) => `
   filtered AS (
     SELECT

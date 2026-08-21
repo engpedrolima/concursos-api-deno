@@ -140,6 +140,16 @@ unívoco, rejeite-a.
 
 ## API
 
-`deno task start` expõe apenas um endpoint de saúde. A antiga coleta de um
-agregador de concursos foi removida para não contrariar a política de fontes
-oficiais.
+Inicie a API local em `http://127.0.0.1:8000` com `deno task start`. Ela usa o
+banco-padrão `data/concursos.sqlite3`; para outro arquivo, execute
+`deno task start -- --database caminho/estudo.sqlite3`.
+
+Endpoints JSON disponíveis:
+
+- `GET /` — saúde do serviço;
+- `GET /api/questions` e `GET /api/questions/:occurrenceId` — listagem e
+  detalhe sem gabarito;
+- `POST /api/questions/:occurrenceId/attempts` — registra e corrige uma
+  resposta;
+- `GET /api/questions/:occurrenceId/attempts` — histórico da ocorrência;
+- `GET /api/statistics` — métricas gerais e por assunto.
