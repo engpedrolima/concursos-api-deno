@@ -104,6 +104,21 @@ nova tentativa vinculada à ocorrência, preservando o gabarito daquele momento
 para o histórico e imprimindo a correção em JSON. A duração é opcional, em
 milissegundos, e aceita valores de zero até 24 horas (`86400000`).
 
+## Estatísticas de estudo
+
+Consulte as métricas gerais e por assunto com:
+
+```bash
+deno task db:stats -- --database caminho/estudo.sqlite3 \
+  --organizer "Banca Exemplo" --year 2020 --subject Direito
+```
+
+As métricas de `attempts` contam todas as respostas registradas. As métricas de
+`occurrences` contam as questões elegíveis e, para cada questão respondida,
+consideram somente sua tentativa mais recente. Os percentuais são arredondados
+para duas casas decimais. O agrupamento usa o assunto da ocorrência, recorre ao
+assunto da prova e identifica a ausência de ambos como `(sem assunto)`.
+
 ## Adicionar uma banca ou órgão
 
 Não há descoberta automática de URLs: ela tende a trazer fontes não autorizadas.

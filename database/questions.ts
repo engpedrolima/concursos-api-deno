@@ -1,9 +1,13 @@
 import type { Database } from "./connection.ts";
+import {
+  buildOccurrenceFilterSql,
+  type QuestionKind,
+} from "./question_filters.ts";
+
+export type { QuestionKind } from "./question_filters.ts";
 
 export const DEFAULT_QUESTION_LIMIT = 25;
 export const MAX_QUESTION_LIMIT = 100;
-
-export type QuestionKind = "multiple-choice" | "certo-errado";
 
 export interface QuestionAlternativeView {
   label: string;
@@ -85,14 +89,8 @@ interface AlternativeRow {
   text: string;
 }
 
-type QueryParameter = string | number;
-
 const ORDER_BY =
   "year ASC, external_id COLLATE BINARY ASC, number ASC, occurrence_id ASC";
-const QUESTION_KINDS = new Set<string>([
-  "multiple-choice",
-  "certo-errado",
-]);
 
 function validatePagination(filters: QuestionOccurrenceFilters): Pagination {
   const limit = filters.limit ?? DEFAULT_QUESTION_LIMIT;
@@ -118,68 +116,20 @@ function validatePagination(filters: QuestionOccurrenceFilters): Pagination {
   return { limit, offset };
 }
 
-function nonEmptyFilter(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new QuestionQueryValidationError(
-      field,
-      "deve ser uma string não vazia",
-    );
-  }
-  return value;
-}
-
 function filtersSql(filters: QuestionOccurrenceFilters): {
   where: string;
-  parameters: QueryParameter[];
+  parameters: Array<string | number>;
 } {
-  const clauses: string[] = [];
-  const parameters: QueryParameter[] = [];
-  if (filters.organizer !== undefined) {
-    clauses.push("e.organizer = ?");
-    parameters.push(nonEmptyFilter(filters.organizer, "organizer"));
-  }
-  if (filters.year !== undefined) {
-    if (!Number.isInteger(filters.year) || filters.year < 1900) {
-      throw new QuestionQueryValidationError(
-        "year",
-        "deve ser um inteiro maior ou igual a 1900",
-      );
-    }
-    clauses.push("e.year = ?");
-    parameters.push(filters.year);
-  }
-  if (filters.role !== undefined) {
-    clauses.push("e.role = ?");
-    parameters.push(nonEmptyFilter(filters.role, "role"));
-  }
-  if (filters.subject !== undefined) {
-    clauses.push("COALESCE(qo.subject, e.subject) = ?");
-    parameters.push(nonEmptyFilter(filters.subject, "subject"));
-  }
-  if (filters.kind !== undefined) {
-    if (!QUESTION_KINDS.has(filters.kind)) {
-      throw new QuestionQueryValidationError(
-        "kind",
-        "deve ser multiple-choice ou certo-errado",
-      );
-    }
-    clauses.push("q.kind = ?");
-    parameters.push(filters.kind);
-  }
-  if (filters.examId !== undefined) {
-    clauses.push("e.external_id = ?");
-    parameters.push(nonEmptyFilter(filters.examId, "examId"));
-  }
   if (
     filters.deduplicate !== undefined &&
     typeof filters.deduplicate !== "boolean"
   ) {
     throw new QuestionQueryValidationError("deduplicate", "deve ser booleano");
   }
-  return {
-    where: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "",
-    parameters,
-  };
+  return buildOccurrenceFilterSql(
+    filters,
+    (field, message) => new QuestionQueryValidationError(field, message),
+  );
 }
 
 const filteredCte = (where: string) => `
