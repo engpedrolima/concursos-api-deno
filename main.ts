@@ -32,6 +32,42 @@ export const API_HOSTNAME = "127.0.0.1";
 export const API_PORT = 8000;
 export const MAX_JSON_REQUEST_BODY_BYTES = 16 * 1024;
 
+interface StaticAsset {
+  source: URL;
+  contentType: string;
+}
+
+const STATIC_ASSETS = new Map<string, StaticAsset>([
+  [
+    "/app/",
+    {
+      source: new URL("./public/index.html", import.meta.url),
+      contentType: "text/html; charset=utf-8",
+    },
+  ],
+  [
+    "/app/index.html",
+    {
+      source: new URL("./public/index.html", import.meta.url),
+      contentType: "text/html; charset=utf-8",
+    },
+  ],
+  [
+    "/app/app.js",
+    {
+      source: new URL("./public/app.js", import.meta.url),
+      contentType: "text/javascript; charset=utf-8",
+    },
+  ],
+  [
+    "/app/styles.css",
+    {
+      source: new URL("./public/styles.css", import.meta.url),
+      contentType: "text/css; charset=utf-8",
+    },
+  ],
+]);
+
 type HandlerResult = Response | Promise<Response>;
 export type ApiHandler = (request: Request) => Promise<Response>;
 
@@ -92,6 +128,21 @@ const errorResponse = (
 
 function methodNotAllowed(allow: string): Response {
   return errorResponse("Método não permitido.", 405, { allow });
+}
+
+function staticAssetResponse(asset: StaticAsset): Response {
+  return new Response(Deno.readTextFileSync(asset.source), {
+    status: 200,
+    headers: {
+      "cache-control": "no-store",
+      "content-security-policy":
+        "default-src 'self'; script-src 'self'; style-src 'self'; " +
+        "connect-src 'self'; img-src 'self' data:; base-uri 'none'; " +
+        "frame-ancestors 'none'; form-action 'self'",
+      "content-type": asset.contentType,
+      "x-content-type-options": "nosniff",
+    },
+  });
 }
 
 function mapError(error: unknown): Response {
@@ -337,6 +388,11 @@ export function createHandler(
         imports:
           "Use `deno task import -- --help`. Apenas PDFs públicos de cadernos e gabaritos definitivos em domínios oficiais são aceitos.",
       });
+    }
+    const staticAsset = STATIC_ASSETS.get(url.pathname);
+    if (staticAsset) {
+      if (request.method !== "GET") return methodNotAllowed("GET");
+      return staticAssetResponse(staticAsset);
     }
     if (url.pathname === "/api/questions") {
       if (request.method !== "GET") return methodNotAllowed("GET");

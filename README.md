@@ -153,3 +153,15 @@ Endpoints JSON disponíveis:
   resposta;
 - `GET /api/questions/:occurrenceId/attempts` — histórico da ocorrência;
 - `GET /api/statistics` — métricas gerais e por assunto.
+
+## Interface local
+
+Fluxo resumido para estudar no navegador:
+
+1. gere e revise o artefato com `deno task import -- ... --output importacao.json`;
+2. importe-o com `deno task db:import -- --artifact importacao.json`;
+3. inicie o serviço com `deno task start`;
+4. abra `http://localhost:8000/app/` no navegador.
+
+A interface e a API usam a mesma origem local. Nenhum dado é enviado a CDN ou
+serviço externo.

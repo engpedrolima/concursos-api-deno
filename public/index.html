@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Concursos — estudo local</title>
+    <link rel="stylesheet" href="/app/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Estudo local e privado</p>
+        <h1>Concursos</h1>
+        <p class="app-subtitle">Questões importadas de provas oficiais</p>
+      </div>
+      <div class="header-actions">
+        <p id="app-status" class="status-pill" role="status" aria-live="polite">
+          Inicializando…
+        </p>
+        <button id="reload-button" class="button button--secondary"
+          type="button">
+          Recarregar dados
+        </button>
+      </div>
+    </header>
+
+    <main id="conteudo" class="app-shell">
+      <section class="panel filters-panel" aria-labelledby="filters-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Seleção</p>
+            <h2 id="filters-title">Filtros de estudo</h2>
+          </div>
+          <p>Os filtros são aplicados às questões e às estatísticas.</p>
+        </div>
+
+        <form id="filters-form" class="filters-form">
+          <label>
+            <span>Banca</span>
+            <input name="organizer" type="text" autocomplete="off"
+              placeholder="Ex.: Cebraspe">
+          </label>
+          <label>
+            <span>Ano</span>
+            <input name="year" type="number" min="1900" step="1"
+              inputmode="numeric" placeholder="2024">
+          </label>
+          <label>
+            <span>Cargo</span>
+            <input name="role" type="text" autocomplete="off"
+              placeholder="Ex.: Analista">
+          </label>
+          <label>
+            <span>Assunto</span>
+            <input name="subject" type="text" autocomplete="off"
+              placeholder="Ex.: Direito">
+          </label>
+          <label>
+            <span>Formato</span>
+            <select name="kind">
+              <option value="">Todos</option>
+              <option value="multiple-choice">Múltipla escolha</option>
+              <option value="certo-errado">Certo ou errado</option>
+            </select>
+          </label>
+          <label class="checkbox-field">
+            <input name="deduplicate" type="checkbox">
+            <span>Uma ocorrência por questão canônica</span>
+          </label>
+          <button class="button button--primary"
+            type="submit">Aplicar filtros</button>
+        </form>
+      </section>
+
+      <section class="panel statistics-panel"
+        aria-labelledby="statistics-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Progresso</p>
+            <h2 id="statistics-title">Estatísticas</h2>
+          </div>
+        </div>
+        <dl class="statistics-grid">
+          <div>
+            <dt>Tentativas</dt>
+            <dd id="stat-attempts">0</dd>
+          </div>
+          <div>
+            <dt>Acertos</dt>
+            <dd id="stat-correct">0</dd>
+          </div>
+          <div>
+            <dt>Erros</dt>
+            <dd id="stat-incorrect">0</dd>
+          </div>
+          <div>
+            <dt>Aproveitamento</dt>
+            <dd id="stat-accuracy">0%</dd>
+          </div>
+          <div>
+            <dt>Respondidas</dt>
+            <dd id="stat-answered">0</dd>
+          </div>
+          <div>
+            <dt>Não respondidas</dt>
+            <dd id="stat-unanswered">0</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="panel study-panel" aria-labelledby="study-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Sessão atual</p>
+            <h2 id="study-title">Questão</h2>
+          </div>
+          <output id="question-counter" class="question-counter">0 de 0</output>
+        </div>
+
+        <p id="study-status" class="study-state" role="status"
+          aria-live="polite">
+          Carregando questões…
+        </p>
+
+        <article id="question-card" class="question-card" hidden>
+          <p id="question-meta" class="question-meta"></p>
+          <p id="question-statement" class="question-statement"></p>
+          <div
+            id="alternatives"
+            class="alternatives"
+            role="group"
+            aria-label="Alternativas da questão"
+          ></div>
+          <p id="answer-feedback" class="answer-feedback" role="status"
+            aria-live="polite"></p>
+
+          <section id="history-section" class="history"
+            aria-labelledby="history-title" hidden>
+            <h3 id="history-title">Histórico desta ocorrência</h3>
+            <ul id="attempt-history"></ul>
+          </section>
+        </article>
+
+        <nav class="question-navigation" aria-label="Navegação entre questões">
+          <button id="previous-button" class="button button--secondary"
+            type="button">
+            Anterior
+          </button>
+          <button id="next-button" class="button button--primary" type="button">
+            Próxima
+          </button>
+        </nav>
+      </section>
+    </main>
+
+    <script type="module" src="/app/app.js"></script>
+  </body>
+</html>
