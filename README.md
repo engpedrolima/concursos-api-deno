@@ -90,6 +90,20 @@ A ordem é ano, `externalId`, número na prova e ID da ocorrência. Com
 questão canônica. O detalhe só inclui o gabarito quando a chamada interna usa
 explicitamente `includeAnswer: true`.
 
+## Tentativas por ocorrência
+
+Registre uma resposta no banco local com:
+
+```bash
+deno task db:answer -- --occurrence-id 1 --selected-label A \
+  --duration-ms 12000 --database caminho/estudo.sqlite3
+```
+
+`--database` é opcional e usa o caminho-padrão acima. Cada resposta cria uma
+nova tentativa vinculada à ocorrência, preservando o gabarito daquele momento
+para o histórico e imprimindo a correção em JSON. A duração é opcional, em
+milissegundos, e aceita valores de zero até 24 horas (`86400000`).
+
 ## Adicionar uma banca ou órgão
 
 Não há descoberta automática de URLs: ela tende a trazer fontes não autorizadas.
