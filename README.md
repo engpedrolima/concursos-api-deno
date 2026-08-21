@@ -78,6 +78,18 @@ Antes de abrir o banco, `db:import` valida integralmente o contrato v1. A chave
 idempotente é o SHA-256 de `schemaVersion`, `importerVersion`, identidade completa
 da prova e URL, SHA-256 e data de coleta de `booklet` e `answerKey`.
 
+## Camada de leitura
+
+`database/questions.ts` lista e obtém ocorrências para estudo sem expor o
+gabarito por padrão. A listagem aceita filtros exatos por banca, ano, cargo,
+assunto, formato e `externalId` da prova, além de paginação e deduplicação.
+O assunto específico da ocorrência prevalece sobre o assunto geral da prova.
+
+A ordem é ano, `externalId`, número na prova e ID da ocorrência. Com
+`deduplicate: true`, a primeira ocorrência filtrada nessa ordem representa cada
+questão canônica. O detalhe só inclui o gabarito quando a chamada interna usa
+explicitamente `includeAnswer: true`.
+
 ## Adicionar uma banca ou órgão
 
 Não há descoberta automática de URLs: ela tende a trazer fontes não autorizadas.
