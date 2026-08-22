@@ -1,12 +1,13 @@
 {
   "tasks": {
     "test": "deno test --allow-read --allow-write --allow-run=deno tests",
-    "start": "deno run --allow-net=127.0.0.1:8000 --allow-read --allow-write main.ts",
+    "start": "deno run --allow-net=127.0.0.1:8000 --allow-read --allow-write --allow-env=CONCURSOS_ACCESS_USER,CONCURSOS_ACCESS_PASSWORD main.ts",
     "import": "deno run --allow-net --allow-read --allow-write --allow-run import.ts",
     "db:init": "deno run --allow-read --allow-write database/init.ts",
     "db:import": "deno run --allow-read --allow-write database/import_cli.ts",
     "db:answer": "deno run --allow-read --allow-write database/answer_cli.ts",
-    "db:stats": "deno run --allow-read --allow-write database/statistics_cli.ts"
+    "db:stats": "deno run --allow-read --allow-write database/statistics_cli.ts",
+    "db:classify": "deno run --allow-read --allow-write database/classify_cli.ts"
   },
   "deploy": {
     "project": "5085571c-6460-4b2c-88fa-3e864fc2e9c4",

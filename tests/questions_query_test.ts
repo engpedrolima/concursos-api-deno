@@ -1,4 +1,5 @@
 import type { ImportArtifact } from "../importer/artifact.ts";
+import { recordAttempt } from "../database/attempts.ts";
 import { parseImportArtifact } from "../importer/artifact.ts";
 import type { Database } from "../database/connection.ts";
 import { openDatabase } from "../database/connection.ts";
@@ -178,6 +179,50 @@ Deno.test("combinação de filtros restringe deterministicamente", async () => {
     assertEquals(page.total, 1);
     assertEquals(page.items[0].exam.externalId, "gamma-2027");
     assertEquals(page.items[0].number, 3);
+  });
+});
+
+Deno.test("filtro de progresso usa a tentativa mais recente por ocorrência", async () => {
+  await withStudyDatabase((database) => {
+    const occurrences = listQuestionOccurrences(database).items;
+    const first = occurrences.find((item) =>
+      item.exam.externalId === "alpha-2026" && item.number === 1
+    );
+    const second = occurrences.find((item) =>
+      item.exam.externalId === "alpha-2026" && item.number === 2
+    );
+    if (!first || !second) throw new Error("Ocorrências sintéticas ausentes.");
+    recordAttempt(database, {
+      questionOccurrenceId: first.occurrenceId,
+      selectedLabel: "B",
+    });
+    recordAttempt(database, {
+      questionOccurrenceId: second.occurrenceId,
+      selectedLabel: "C",
+    });
+    recordAttempt(database, {
+      questionOccurrenceId: second.occurrenceId,
+      selectedLabel: "E",
+    });
+
+    assertEquals(
+      listQuestionOccurrences(database, { progress: "unanswered" }).total,
+      2,
+    );
+    assertEquals(
+      listQuestionOccurrences(database, { progress: "answered" }).total,
+      2,
+    );
+    assertEquals(
+      listQuestionOccurrences(database, { progress: "latest-correct" }).items
+        .map((item) => item.occurrenceId),
+      [first.occurrenceId],
+    );
+    assertEquals(
+      listQuestionOccurrences(database, { progress: "latest-incorrect" }).items
+        .map((item) => item.occurrenceId),
+      [second.occurrenceId],
+    );
   });
 });
 

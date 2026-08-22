@@ -86,22 +86,26 @@ function createOccurrence(
 
 Deno.test("aplica a migração inicial em banco temporário", async () => {
   await withTemporaryDatabase((database) => {
-    assertEquals(runMigrations(database), { applied: [1], skipped: [] });
+    assertEquals(runMigrations(database), { applied: [1, 2], skipped: [] });
     const tables = database.prepare(`
       SELECT name FROM sqlite_schema
       WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
       ORDER BY name
     `).all().map((row) => (row as { name: string }).name);
-    assertEquals(tables, [
+    const requiredTables = [
       "alternatives",
       "attempts",
       "exams",
       "import_batches",
       "import_occurrences",
       "question_occurrences",
+      "question_fts",
       "questions",
       "schema_migrations",
-    ]);
+    ];
+    for (const table of requiredTables) {
+      assertEquals(tables.includes(table), true);
+    }
     assertEquals(
       (database.prepare("PRAGMA foreign_keys").get() as {
         foreign_keys: number;
@@ -119,12 +123,32 @@ Deno.test("aplica a migração inicial em banco temporário", async () => {
 
 Deno.test("segunda execução das migrações é idempotente", async () => {
   await withTemporaryDatabase((database) => {
-    assertEquals(runMigrations(database), { applied: [1], skipped: [] });
-    assertEquals(runMigrations(database), { applied: [], skipped: [1] });
+    assertEquals(runMigrations(database), { applied: [1, 2], skipped: [] });
+    assertEquals(runMigrations(database), { applied: [], skipped: [1, 2] });
     const count = database.prepare(
       "SELECT count(*) AS count FROM schema_migrations",
     ).get() as { count: number };
-    assertEquals(count.count, 1);
+    assertEquals(count.count, 2);
+  });
+});
+
+Deno.test("migração FTS atualiza banco com 001 e faz backfill", async () => {
+  await withTemporaryDatabase((database) => {
+    assertEquals(runMigrations(database, [MIGRATIONS[0]]), {
+      applied: [1],
+      skipped: [],
+    });
+    const questionId = createQuestion(database, "f");
+    database.prepare("UPDATE questions SET statement = ? WHERE id = ?").run(
+      "Enunciado existente para backfill textual",
+      questionId,
+    );
+
+    assertEquals(runMigrations(database), { applied: [2], skipped: [1] });
+    const indexed = database.prepare(`
+      SELECT rowid FROM question_fts WHERE question_fts MATCH ?
+    `).get("backfill") as { rowid: number };
+    assertEquals(Number(indexed.rowid), questionId);
   });
 });
 
@@ -230,7 +254,7 @@ Deno.test("erro em migração reverte DDL, dados e registro da versão", async (
   await withTemporaryDatabase((database) => {
     runMigrations(database);
     const brokenMigration: Migration = {
-      version: 2,
+      version: 3,
       name: "broken_for_rollback_test",
       sql: `
         CREATE TABLE partial_state (id INTEGER PRIMARY KEY) STRICT;
@@ -240,7 +264,7 @@ Deno.test("erro em migração reverte DDL, dados e registro da versão", async (
     };
     const error = assertThrows(
       () => runMigrations(database, [...MIGRATIONS, brokenMigration]),
-      /Falha na migração 2.*no such table: table_that_does_not_exist/i,
+      /Falha na migração 3.*no such table: table_that_does_not_exist/i,
     );
     assertEquals(error instanceof MigrationError, true);
     assertEquals(
@@ -251,7 +275,7 @@ Deno.test("erro em migração reverte DDL, dados e registro da versão", async (
     );
     assertEquals(
       database.prepare(`
-        SELECT version FROM schema_migrations WHERE version = 2
+        SELECT version FROM schema_migrations WHERE version = 3
       `).get(),
       undefined,
     );

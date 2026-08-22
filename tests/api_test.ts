@@ -70,7 +70,7 @@ async function seedApiDatabase(database: Database): Promise<ApiOccurrences> {
   alpha.questions[0].subject = "Tecnologia";
   const certoErrado = structuredClone(alpha.questions[0]);
   certoErrado.number = 2;
-  certoErrado.statement = "A API sintética está saudável.";
+  certoErrado.statement = "O conteúdo sintético da API está saudável.";
   certoErrado.alternatives = { C: "Certo", E: "Errado" };
   certoErrado.answer = "C";
   certoErrado.subject = "Direito";
@@ -211,6 +211,114 @@ Deno.test("listagem HTTP aplica filtros e nunca expõe gabarito", async () => {
       ),
     ) as { total: number };
     assertEquals(deduplicated.total, 2);
+  });
+});
+
+Deno.test("filter-options retorna valores disponíveis em ordem estável", async () => {
+  await withApiDatabase(async (handler) => {
+    const response = await handler(
+      new Request("http://localhost/api/filter-options"),
+    );
+    assertEquals(response.status, 200);
+    const options = await responseJson(response) as {
+      organizers: string[];
+      years: number[];
+      roles: string[];
+      subjects: string[];
+      kinds: string[];
+      exams: Array<{ externalId: string; label: string }>;
+    };
+    assertEquals(options.organizers, ["Banca Alpha", "Banca Beta"]);
+    assertEquals(options.years, [2026, 2027]);
+    assertEquals(options.roles, ["Analista", "Auditor"]);
+    assertEquals(options.subjects, ["Direito", "Tecnologia"]);
+    assertEquals(options.kinds, ["certo-errado", "multiple-choice"]);
+    assertEquals(
+      options.exams.map((exam) => exam.externalId),
+      ["api-alpha-2026", "api-beta-2027"],
+    );
+  });
+});
+
+Deno.test("endpoint de semelhantes valida rota e não expõe gabarito", async () => {
+  await withApiDatabase(async (handler, occurrences) => {
+    const success = await handler(
+      new Request(
+        `http://localhost/api/questions/${occurrences.alphaMultipleChoice}/similar?limit=1`,
+      ),
+    );
+    assertEquals(success.status, 200);
+    const items = await responseJson(success) as Array<Record<string, unknown>>;
+    assertEquals(items.length, 1);
+    assertEquals(JSON.stringify(items).includes("answer"), false);
+
+    const invalid = await handler(
+      new Request("http://localhost/api/questions/abc/similar"),
+    );
+    assertEquals(invalid.status, 400);
+    await responseJson(invalid);
+    const missing = await handler(
+      new Request("http://localhost/api/questions/999999/similar"),
+    );
+    assertEquals(missing.status, 404);
+    await responseJson(missing);
+    const excessive = await handler(
+      new Request(
+        `http://localhost/api/questions/${occurrences.alphaMultipleChoice}/similar?limit=21`,
+      ),
+    );
+    assertEquals(excessive.status, 400);
+    await responseJson(excessive);
+    const method = await handler(
+      new Request(
+        `http://localhost/api/questions/${occurrences.alphaMultipleChoice}/similar`,
+        { method: "POST" },
+      ),
+    );
+    assertEquals(method.status, 405);
+    assertEquals(method.headers.get("allow"), "GET");
+    await responseJson(method);
+  });
+});
+
+Deno.test("filtro HTTP de progresso afeta questões e estatísticas", async () => {
+  await withApiDatabase(async (handler, occurrences) => {
+    await requestJson(
+      handler,
+      `/api/questions/${occurrences.alphaMultipleChoice}/attempts`,
+      { selectedLabel: "B" },
+    );
+    const correct = await responseJson(
+      await handler(
+        new Request(
+          "http://localhost/api/questions?progress=latest-correct",
+        ),
+      ),
+    ) as { total: number };
+    assertEquals(correct.total, 1);
+    const unanswered = await responseJson(
+      await handler(
+        new Request(
+          "http://localhost/api/questions?progress=unanswered",
+        ),
+      ),
+    ) as { total: number };
+    assertEquals(unanswered.total, 2);
+    const statistics = await responseJson(
+      await handler(
+        new Request(
+          "http://localhost/api/statistics?progress=latest-correct",
+        ),
+      ),
+    ) as { occurrences: { total: number; latestCorrect: number } };
+    assertEquals(statistics.occurrences, {
+      total: 1,
+      answered: 1,
+      unanswered: 0,
+      latestCorrect: 1,
+      latestIncorrect: 0,
+      latestAccuracyPercent: 100,
+    });
   });
 });
 

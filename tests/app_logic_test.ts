@@ -3,7 +3,10 @@ import {
   buildStatisticsSearch,
   createQuestionPager,
   feedbackPresentation,
+  filterSelectEntries,
   formatPercent,
+  populateSelect,
+  resetStudyState,
   setText,
   studyStateMessage,
 } from "../public/app.js";
@@ -25,6 +28,8 @@ Deno.test("lógica da UI monta filtros de questões e estatísticas", () => {
     role: "Analista",
     subject: "Direito",
     kind: "certo-errado",
+    examId: "alpha-2026",
+    progress: "latest-correct",
     deduplicate: true,
   };
   const questions = new URLSearchParams(buildQuestionSearch(filters));
@@ -33,6 +38,8 @@ Deno.test("lógica da UI monta filtros de questões e estatísticas", () => {
   assertEquals(questions.get("role"), "Analista");
   assertEquals(questions.get("subject"), "Direito");
   assertEquals(questions.get("kind"), "certo-errado");
+  assertEquals(questions.get("examId"), "alpha-2026");
+  assertEquals(questions.get("progress"), "latest-correct");
   assertEquals(questions.get("deduplicate"), "true");
   assertEquals(questions.get("limit"), "100");
   assertEquals(questions.get("offset"), "0");
@@ -45,8 +52,97 @@ Deno.test("lógica da UI monta filtros de questões e estatísticas", () => {
 
   const statistics = new URLSearchParams(buildStatisticsSearch(filters));
   assertEquals(statistics.get("organizer"), "Banca Alpha");
+  assertEquals(statistics.get("examId"), "alpha-2026");
+  assertEquals(statistics.get("progress"), "latest-correct");
   assertEquals(statistics.has("deduplicate"), false);
   assertEquals(statistics.has("limit"), false);
+});
+
+Deno.test("opções do endpoint populam selects com Todos e labels legíveis", () => {
+  const entries = filterSelectEntries({
+    organizers: ["Banca A"],
+    years: [2024],
+    roles: ["Analista"],
+    subjects: ["Direito"],
+    kinds: ["multiple-choice", "certo-errado"],
+    exams: [{ externalId: "a-2024", label: "Banca A 2024 (a-2024)" }],
+  });
+  assertEquals(entries.kind, [
+    { value: "multiple-choice", label: "Múltipla escolha" },
+    { value: "certo-errado", label: "Certo ou errado" },
+  ]);
+  assertEquals(entries.examId, [
+    { value: "a-2024", label: "Banca A 2024 (a-2024)" },
+  ]);
+
+  const select = {
+    value: "",
+    options: [] as Array<{ value: string; label: string }>,
+    replaceChildren(...options: Array<{ value: string; label: string }>) {
+      this.options = options;
+    },
+  };
+  populateSelect(
+    select,
+    entries.organizer,
+    (value: string, label: string) => ({ value, label }),
+  );
+  assertEquals(select.options, [
+    { value: "", label: "Todos" },
+    { value: "Banca A", label: "Banca A" },
+  ]);
+});
+
+Deno.test("limpar filtros reinicia paginação e estado transitório", () => {
+  let resets = 0;
+  const pager = { reset: () => resets++ };
+  const state = {
+    feedback: { isCorrect: true },
+    history: [{ id: 1 }],
+    openedQuestion: { occurrenceId: 3 },
+    similarItems: [{ occurrenceId: 4 }],
+    similarLoading: true,
+    similarError: true,
+    similarVisible: true,
+    similarToken: 2,
+  };
+  resetStudyState(state, pager);
+  assertEquals(resets, 1);
+  assertEquals(state, {
+    feedback: null,
+    history: [],
+    openedQuestion: null,
+    similarItems: [],
+    similarLoading: false,
+    similarError: false,
+    similarVisible: false,
+    similarToken: 3,
+  });
+});
+
+Deno.test("interface carrega selects e semelhantes pelos endpoints locais", async () => {
+  const [html, source] = await Promise.all([
+    Deno.readTextFile(new URL("../public/index.html", import.meta.url)),
+    Deno.readTextFile(new URL("../public/app.js", import.meta.url)),
+  ]);
+  for (
+    const id of [
+      "organizer-filter",
+      "year-filter",
+      "role-filter",
+      "subject-filter",
+      "kind-filter",
+      "exam-filter",
+      "progress-filter",
+      "clear-filters-button",
+      "similar-button",
+      "back-to-list-button",
+    ]
+  ) {
+    assertEquals(html.includes(`id="${id}"`), true);
+  }
+  assertEquals(source.includes('requestJson("/api/filter-options")'), true);
+  assertEquals(source.includes("/similar?limit=10"), true);
 });
 
 Deno.test("paginação mantém total global e busca a próxima página sob demanda", async () => {

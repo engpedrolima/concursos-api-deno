@@ -328,6 +328,31 @@ Deno.test("combinação de filtros é aplicada antes das métricas", async () =>
   });
 });
 
+Deno.test("filtro de progresso restringe listagem estatística elegível", async () => {
+  await withStatisticsDatabase((database) => {
+    const unanswered = getStudyStatistics(database, { progress: "unanswered" });
+    assertEquals(unanswered.occurrences.total, 1);
+    assertEquals(unanswered.attempts.total, 0);
+
+    const answered = getStudyStatistics(database, { progress: "answered" });
+    assertEquals(answered.occurrences.total, 4);
+    assertEquals(answered.attempts.total, 7);
+
+    const latestCorrect = getStudyStatistics(database, {
+      progress: "latest-correct",
+    });
+    assertEquals(latestCorrect.occurrences.total, 2);
+    assertEquals(latestCorrect.occurrences.latestCorrect, 2);
+
+    const latestIncorrect = getStudyStatistics(database, {
+      progress: "latest-incorrect",
+      organizer: "Banca Alpha",
+    });
+    assertEquals(latestIncorrect.occurrences.total, 1);
+    assertEquals(latestIncorrect.occurrences.latestIncorrect, 1);
+  });
+});
+
 Deno.test("quebra por assunto usa fallback, label ausente e ordem estável", async () => {
   await withStatisticsDatabase((database) => {
     const groups = getStudyStatistics(database).bySubject;

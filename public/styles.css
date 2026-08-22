@@ -199,7 +199,7 @@ button:disabled {
 
 .filters-form {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 0.85rem;
   align-items: end;
 }
@@ -385,6 +385,59 @@ select:hover {
 
 .answer-feedback--incorrect {
   color: var(--danger);
+}
+
+.similar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.similar {
+  margin-top: 1.25rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line);
+}
+
+.similar h3 {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+}
+
+.similar > p {
+  color: var(--muted);
+}
+
+.similar ul {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.similar li {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border: 1px solid #d8deea;
+  border-radius: 0.7rem;
+  background: #f8faff;
+}
+
+.similar li p {
+  margin: 0;
+}
+
+.similar-item-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.similar li .button {
+  justify-self: start;
 }
 
 .history {

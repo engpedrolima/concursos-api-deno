@@ -10,9 +10,13 @@ export interface Migration {
 const initialSchema = Deno.readTextFileSync(
   new URL("./migrations/001_initial_schema.sql", import.meta.url),
 );
+const questionFts5 = Deno.readTextFileSync(
+  new URL("./migrations/002_question_fts5.sql", import.meta.url),
+);
 
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "initial_schema", sql: initialSchema },
+  { version: 2, name: "question_fts5", sql: questionFts5 },
 ];
 
 export interface MigrationResult {
@@ -145,7 +149,15 @@ export function runMigrations(
       } catch {
         // O erro original da migração é mais informativo.
       }
-      throw new MigrationError(migration.version, migration.name, error);
+      const cause = migration.name === "question_fts5" &&
+          error instanceof Error && /fts5|no such module/iu.test(error.message)
+        ? new Error(
+          "FTS5 não está disponível nesta compilação do SQLite; " +
+            "a busca de questões semelhantes requer FTS5.",
+          { cause: error },
+        )
+        : error;
+      throw new MigrationError(migration.version, migration.name, cause);
     }
   }
   return result;

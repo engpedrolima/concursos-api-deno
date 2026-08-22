@@ -12,6 +12,7 @@ import {
   DEFAULT_DATABASE_PATH,
   openDatabase,
 } from "./database/connection.ts";
+import { getFilterOptions } from "./database/filter_options.ts";
 import { runMigrations } from "./database/migrations.ts";
 import {
   getQuestionOccurrence,
@@ -20,7 +21,15 @@ import {
   QuestionQueryValidationError,
   validateQuestionOccurrenceFilters,
 } from "./database/questions.ts";
-import type { QuestionKind } from "./database/question_filters.ts";
+import type {
+  QuestionKind,
+  StudyProgress,
+} from "./database/question_filters.ts";
+import {
+  DEFAULT_SIMILAR_LIMIT,
+  findSimilarQuestionOccurrences,
+  SimilarQuestionValidationError,
+} from "./database/similar_questions.ts";
 import {
   getStudyStatistics,
   StatisticsValidationError,
@@ -31,6 +40,26 @@ import {
 export const API_HOSTNAME = "127.0.0.1";
 export const API_PORT = 8000;
 export const MAX_JSON_REQUEST_BODY_BYTES = 16 * 1024;
+export const ACCESS_USER_ENV = "CONCURSOS_ACCESS_USER";
+export const ACCESS_PASSWORD_ENV = "CONCURSOS_ACCESS_PASSWORD";
+const BASIC_AUTH_CHALLENGE =
+  'Basic realm="concursos-api-deno", charset="UTF-8"';
+
+export interface BasicAccessCredentials {
+  user: string;
+  password: string;
+}
+
+export function readAccessCredentials(
+  getEnvironmentValue: (name: string) => string | undefined = (name) =>
+    Deno.env.get(name),
+): BasicAccessCredentials | null {
+  const user = getEnvironmentValue(ACCESS_USER_ENV);
+  const password = getEnvironmentValue(ACCESS_PASSWORD_ENV);
+  return user === undefined || password === undefined
+    ? null
+    : { user, password };
+}
 
 interface StaticAsset {
   source: URL;
@@ -79,11 +108,14 @@ export interface ApiDependencies {
   recordAttempt: typeof recordAttempt;
   getAttemptHistory: typeof getAttemptHistory;
   getStatistics: typeof getStudyStatistics;
+  getFilterOptions: typeof getFilterOptions;
+  findSimilarQuestions: typeof findSimilarQuestionOccurrences;
 }
 
 export interface CreateHandlerOptions {
   databasePath?: string;
   dependencies?: Partial<ApiDependencies>;
+  accessCredentials?: BasicAccessCredentials | null;
 }
 
 const defaultDependencies: ApiDependencies = {
@@ -94,6 +126,8 @@ const defaultDependencies: ApiDependencies = {
   recordAttempt,
   getAttemptHistory,
   getStatistics: getStudyStatistics,
+  getFilterOptions,
+  findSimilarQuestions: findSimilarQuestionOccurrences,
 };
 
 class HttpError extends Error {
@@ -130,6 +164,64 @@ function methodNotAllowed(allow: string): Response {
   return errorResponse("Método não permitido.", 405, { allow });
 }
 
+const protectedPath = (pathname: string): boolean =>
+  pathname === "/app" || pathname.startsWith("/app/") ||
+  pathname.startsWith("/api/");
+
+function constantTimeTextEquals(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left);
+  const rightBytes = new TextEncoder().encode(right);
+  const length = Math.max(leftBytes.length, rightBytes.length);
+  let difference = leftBytes.length ^ rightBytes.length;
+  for (let index = 0; index < length; index++) {
+    difference |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
+  }
+  return difference === 0;
+}
+
+function parseBasicAuthorization(value: string | null): {
+  user: string;
+  password: string;
+} | null {
+  if (value === null) return null;
+  const match = value.match(/^Basic ([A-Za-z0-9+/]+={0,2})$/u);
+  if (!match) return null;
+  try {
+    const binary = atob(match[1]);
+    const bytes = Uint8Array.from(
+      binary,
+      (character) => character.charCodeAt(0),
+    );
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    const separator = decoded.indexOf(":");
+    if (separator < 0) return null;
+    return {
+      user: decoded.slice(0, separator),
+      password: decoded.slice(separator + 1),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function hasValidBasicAuthorization(
+  request: Request,
+  expected: BasicAccessCredentials,
+): boolean {
+  const received = parseBasicAuthorization(
+    request.headers.get("authorization"),
+  );
+  if (received === null) return false;
+  return constantTimeTextEquals(received.user, expected.user) &&
+    constantTimeTextEquals(received.password, expected.password);
+}
+
+function authenticationRequired(): Response {
+  return errorResponse("Autenticação necessária.", 401, {
+    "www-authenticate": BASIC_AUTH_CHALLENGE,
+  });
+}
+
 function staticAssetResponse(asset: StaticAsset): Response {
   return new Response(Deno.readTextFileSync(asset.source), {
     status: 200,
@@ -152,6 +244,7 @@ function mapError(error: unknown): Response {
   if (
     error instanceof QuestionQueryValidationError ||
     error instanceof StatisticsValidationError ||
+    error instanceof SimilarQuestionValidationError ||
     error instanceof AttemptValidationError ||
     error instanceof InvalidAlternativeError
   ) {
@@ -209,6 +302,7 @@ const COMMON_FILTERS = new Set([
   "subject",
   "kind",
   "examId",
+  "progress",
 ]);
 
 function rejectUnknownParameters(
@@ -230,12 +324,14 @@ function commonFilters(parameters: URLSearchParams): StudyStatisticsFilters {
   const subject = singleParameter(parameters, "subject");
   const kind = singleParameter(parameters, "kind");
   const examId = singleParameter(parameters, "examId");
+  const progress = singleParameter(parameters, "progress");
   if (organizer !== undefined) filters.organizer = organizer;
   if (year !== undefined) filters.year = positiveInteger(year, "year");
   if (role !== undefined) filters.role = role;
   if (subject !== undefined) filters.subject = subject;
   if (kind !== undefined) filters.kind = kind as QuestionKind;
   if (examId !== undefined) filters.examId = examId;
+  if (progress !== undefined) filters.progress = progress as StudyProgress;
   return filters;
 }
 
@@ -367,6 +463,7 @@ export function createHandler(
     throw new Error("O caminho do banco não pode ser vazio.");
   }
   const dependencies = { ...defaultDependencies, ...options.dependencies };
+  const accessCredentials = options.accessCredentials ?? null;
 
   const withDatabase = <T>(operation: (database: Database) => T): T => {
     const database = dependencies.openDatabase(databasePath);
@@ -380,6 +477,12 @@ export function createHandler(
 
   const dispatch = (request: Request): HandlerResult => {
     const url = new URL(request.url);
+    if (
+      accessCredentials !== null && protectedPath(url.pathname) &&
+      !hasValidBasicAuthorization(request, accessCredentials)
+    ) {
+      return authenticationRequired();
+    }
     if (url.pathname === "/") {
       if (request.method !== "GET") return methodNotAllowed("GET");
       return jsonResponse({
@@ -401,6 +504,13 @@ export function createHandler(
         withDatabase((database) =>
           dependencies.listQuestions(database, filters)
         ),
+      );
+    }
+    if (url.pathname === "/api/filter-options") {
+      if (request.method !== "GET") return methodNotAllowed("GET");
+      rejectUnknownParameters(url.searchParams, new Set());
+      return jsonResponse(
+        withDatabase((database) => dependencies.getFilterOptions(database)),
       );
     }
     if (url.pathname === "/api/statistics") {
@@ -439,6 +549,28 @@ export function createHandler(
         );
         return jsonResponse(feedback, 201);
       });
+    }
+
+    const similarMatch = url.pathname.match(
+      /^\/api\/questions\/([^/]+)\/similar$/u,
+    );
+    if (similarMatch) {
+      if (request.method !== "GET") return methodNotAllowed("GET");
+      rejectUnknownParameters(url.searchParams, new Set(["limit"]));
+      const occurrenceId = positiveInteger(
+        similarMatch[1],
+        "occurrenceId",
+      );
+      const rawLimit = singleParameter(url.searchParams, "limit");
+      const limit = rawLimit === undefined
+        ? DEFAULT_SIMILAR_LIMIT
+        : positiveInteger(rawLimit, "limit");
+      const similar = withDatabase((database) =>
+        dependencies.findSimilarQuestions(database, occurrenceId, limit)
+      );
+      return similar === null
+        ? errorResponse("Ocorrência de questão não encontrada.", 404)
+        : jsonResponse(similar);
     }
 
     const detailMatch = url.pathname.match(/^\/api\/questions\/([^/]+)$/u);
@@ -487,6 +619,7 @@ export const handler = createHandler();
 
 if (import.meta.main) {
   const { databasePath } = parseServerArguments(Deno.args);
+  const accessCredentials = readAccessCredentials();
   const database = openDatabase(databasePath);
   try {
     runMigrations(database);
@@ -498,6 +631,6 @@ if (import.meta.main) {
   );
   Deno.serve(
     { hostname: API_HOSTNAME, port: API_PORT },
-    createHandler({ databasePath }),
+    createHandler({ databasePath, accessCredentials }),
   );
 }

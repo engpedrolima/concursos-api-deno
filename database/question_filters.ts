@@ -1,4 +1,9 @@
 export type QuestionKind = "multiple-choice" | "certo-errado";
+export type StudyProgress =
+  | "unanswered"
+  | "answered"
+  | "latest-correct"
+  | "latest-incorrect";
 
 export interface StudyOccurrenceFilters {
   organizer?: string;
@@ -7,6 +12,7 @@ export interface StudyOccurrenceFilters {
   subject?: string;
   kind?: QuestionKind;
   examId?: string;
+  progress?: StudyProgress;
 }
 
 export type QueryParameter = string | number;
@@ -24,6 +30,12 @@ export type FilterValidationErrorFactory = (
 const QUESTION_KINDS = new Set<string>([
   "multiple-choice",
   "certo-errado",
+]);
+const STUDY_PROGRESS = new Set<string>([
+  "unanswered",
+  "answered",
+  "latest-correct",
+  "latest-incorrect",
 ]);
 
 function nonEmptyFilter(
@@ -77,6 +89,34 @@ export function buildOccurrenceFilterSql(
   if (filters.examId !== undefined) {
     clauses.push("e.external_id = ?");
     parameters.push(nonEmptyFilter(filters.examId, "examId", invalid));
+  }
+  if (filters.progress !== undefined) {
+    if (!STUDY_PROGRESS.has(filters.progress)) {
+      throw invalid(
+        "progress",
+        "deve ser unanswered, answered, latest-correct ou latest-incorrect",
+      );
+    }
+    if (filters.progress === "unanswered") {
+      clauses.push(`NOT EXISTS (
+        SELECT 1 FROM attempts AS progress_attempt
+        WHERE progress_attempt.question_occurrence_id = qo.id
+      )`);
+    } else if (filters.progress === "answered") {
+      clauses.push(`EXISTS (
+        SELECT 1 FROM attempts AS progress_attempt
+        WHERE progress_attempt.question_occurrence_id = qo.id
+      )`);
+    } else {
+      clauses.push(`(
+        SELECT progress_attempt.is_correct
+        FROM attempts AS progress_attempt
+        WHERE progress_attempt.question_occurrence_id = qo.id
+        ORDER BY progress_attempt.answered_at DESC, progress_attempt.id DESC
+        LIMIT 1
+      ) = ?`);
+      parameters.push(filters.progress === "latest-correct" ? 1 : 0);
+    }
   }
   return {
     where: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "",

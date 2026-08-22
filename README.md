@@ -78,11 +78,30 @@ Antes de abrir o banco, `db:import` valida integralmente o contrato v1. A chave
 idempotente é o SHA-256 de `schemaVersion`, `importerVersion`, identidade completa
 da prova e URL, SHA-256 e data de coleta de `booklet` e `answerKey`.
 
+## Classificação local por assunto
+
+Depois de importar uma prova, classifique ocorrências ainda sem assunto
+específico com regras locais e determinísticas:
+
+```bash
+deno task db:classify -- --exam-id prova-2026-procurador
+deno task db:classify -- --exam-id prova-2026-procurador \
+  --database caminho/estudo.sqlite3 --force
+```
+
+Sem `--force`, o comando preserva assuntos específicos e atualiza somente
+valores ausentes ou genéricos. O resumo JSON informa a versão das regras,
+contagens por assunto e quantas ocorrências ficaram como `Sem classificação`.
+A classificação usa apenas o enunciado e as alternativas armazenados no banco;
+não acessa rede, serviços de IA ou os PDFs originais.
+
 ## Camada de leitura
 
 `database/questions.ts` lista e obtém ocorrências para estudo sem expor o
 gabarito por padrão. A listagem aceita filtros exatos por banca, ano, cargo,
-assunto, formato e `externalId` da prova, além de paginação e deduplicação.
+assunto, formato, progresso e `externalId` da prova, além de paginação e
+deduplicação. O progresso permite selecionar não respondidas, respondidas e
+ocorrências cuja tentativa mais recente foi correta ou incorreta.
 O assunto específico da ocorrência prevalece sobre o assunto geral da prova.
 
 A ordem é ano, `externalId`, número na prova e ID da ocorrência. Com
@@ -149,6 +168,9 @@ Endpoints JSON disponíveis:
 - `GET /` — saúde do serviço;
 - `GET /api/questions` e `GET /api/questions/:occurrenceId` — listagem e
   detalhe sem gabarito;
+- `GET /api/filter-options` — valores disponíveis para os filtros;
+- `GET /api/questions/:occurrenceId/similar` — ocorrências textualmente
+  semelhantes, sem gabarito;
 - `POST /api/questions/:occurrenceId/attempts` — registra e corrige uma
   resposta;
 - `GET /api/questions/:occurrenceId/attempts` — histórico da ocorrência;
@@ -164,4 +186,6 @@ Fluxo resumido para estudar no navegador:
 4. abra `http://localhost:8000/app/` no navegador.
 
 A interface e a API usam a mesma origem local. Nenhum dado é enviado a CDN ou
-serviço externo.
+serviço externo. O filtro de progresso usa a tentativa mais recente de cada
+ocorrência. O botão **Questões semelhantes** usa somente similaridade textual
+local via SQLite FTS5/BM25; esta primeira versão não é busca semântica nem IA.

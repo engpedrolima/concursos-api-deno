@@ -40,30 +40,49 @@
         <form id="filters-form" class="filters-form">
           <label>
             <span>Banca</span>
-            <input name="organizer" type="text" autocomplete="off"
-              placeholder="Ex.: Cebraspe">
+            <select name="organizer" id="organizer-filter">
+              <option value="">Todos</option>
+            </select>
           </label>
           <label>
             <span>Ano</span>
-            <input name="year" type="number" min="1900" step="1"
-              inputmode="numeric" placeholder="2024">
+            <select name="year" id="year-filter">
+              <option value="">Todos</option>
+            </select>
           </label>
           <label>
             <span>Cargo</span>
-            <input name="role" type="text" autocomplete="off"
-              placeholder="Ex.: Analista">
+            <select name="role" id="role-filter">
+              <option value="">Todos</option>
+            </select>
           </label>
           <label>
             <span>Assunto</span>
-            <input name="subject" type="text" autocomplete="off"
-              placeholder="Ex.: Direito">
+            <select name="subject" id="subject-filter">
+              <option value="">Todos</option>
+            </select>
           </label>
           <label>
             <span>Formato</span>
-            <select name="kind">
+            <select name="kind" id="kind-filter">
               <option value="">Todos</option>
-              <option value="multiple-choice">Múltipla escolha</option>
-              <option value="certo-errado">Certo ou errado</option>
+            </select>
+          </label>
+          <label>
+            <span>Prova</span>
+            <select name="examId" id="exam-filter">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <label>
+            <span>Progresso</span>
+            <select name="progress" id="progress-filter">
+              <option value="">Todas</option>
+              <option value="unanswered">Não respondidas</option>
+              <option value="answered">Respondidas</option>
+              <option value="latest-correct">Última resposta correta</option>
+              <option
+                value="latest-incorrect">Última resposta incorreta</option>
             </select>
           </label>
           <label class="checkbox-field">
@@ -72,6 +91,8 @@
           </label>
           <button class="button button--primary"
             type="submit">Aplicar filtros</button>
+          <button id="clear-filters-button" class="button button--secondary"
+            type="button">Limpar filtros</button>
         </form>
       </section>
 
@@ -136,6 +157,20 @@
           ></div>
           <p id="answer-feedback" class="answer-feedback" role="status"
             aria-live="polite"></p>
+
+          <div class="similar-actions">
+            <button id="similar-button" class="button button--secondary"
+              type="button">Questões semelhantes</button>
+            <button id="back-to-list-button" class="button button--secondary"
+              type="button" hidden>Voltar à lista filtrada</button>
+          </div>
+
+          <section id="similar-section" class="similar" hidden
+            aria-labelledby="similar-title">
+            <h3 id="similar-title">Questões semelhantes</h3>
+            <p id="similar-status" role="status" aria-live="polite"></p>
+            <ul id="similar-list"></ul>
+          </section>
 
           <section id="history-section" class="history"
             aria-labelledby="history-title" hidden>

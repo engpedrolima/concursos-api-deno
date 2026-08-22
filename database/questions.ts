@@ -2,6 +2,7 @@ import type { Database } from "./connection.ts";
 import {
   buildOccurrenceFilterSql,
   type QuestionKind,
+  type StudyProgress,
 } from "./question_filters.ts";
 
 export type { QuestionKind } from "./question_filters.ts";
@@ -44,6 +45,7 @@ export interface QuestionOccurrenceFilters {
   subject?: string;
   kind?: QuestionKind;
   examId?: string;
+  progress?: StudyProgress;
   deduplicate?: boolean;
   limit?: number;
   offset?: number;

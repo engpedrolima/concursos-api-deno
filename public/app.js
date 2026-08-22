@@ -35,6 +35,8 @@ export function buildQuestionSearch(
   appendNonEmpty(parameters, "role", filters.role);
   appendNonEmpty(parameters, "subject", filters.subject);
   appendNonEmpty(parameters, "kind", filters.kind);
+  appendNonEmpty(parameters, "examId", filters.examId);
+  appendNonEmpty(parameters, "progress", filters.progress);
   if (filters.deduplicate === true) parameters.set("deduplicate", "true");
   parameters.set("limit", String(limit));
   parameters.set("offset", String(offset));
@@ -132,7 +134,65 @@ export function buildStatisticsSearch(filters = {}) {
   appendNonEmpty(parameters, "role", filters.role);
   appendNonEmpty(parameters, "subject", filters.subject);
   appendNonEmpty(parameters, "kind", filters.kind);
+  appendNonEmpty(parameters, "examId", filters.examId);
+  appendNonEmpty(parameters, "progress", filters.progress);
   return parameters.toString();
+}
+
+const KIND_LABELS = {
+  "multiple-choice": "Múltipla escolha",
+  "certo-errado": "Certo ou errado",
+};
+
+const simpleEntries = (values) =>
+  values.map((value) => ({ value: String(value), label: String(value) }));
+
+export function filterSelectEntries(options) {
+  return {
+    organizer: simpleEntries(options.organizers),
+    year: simpleEntries(options.years),
+    role: simpleEntries(options.roles),
+    subject: simpleEntries(options.subjects),
+    kind: options.kinds.map((kind) => ({
+      value: kind,
+      label: KIND_LABELS[kind] ?? kind,
+    })),
+    examId: options.exams.map((exam) => ({
+      value: exam.externalId,
+      label: exam.label,
+    })),
+  };
+}
+
+export function populateSelect(select, entries, optionFactory) {
+  const previous = select.value;
+  const options = [
+    optionFactory("", "Todos"),
+    ...entries.map((entry) => optionFactory(entry.value, entry.label)),
+  ];
+  select.replaceChildren(...options);
+  select.value = entries.some((entry) => entry.value === previous)
+    ? previous
+    : "";
+}
+
+export function resetStudyState(state, pager) {
+  pager.reset();
+  state.feedback = null;
+  state.history = [];
+  state.openedQuestion = null;
+  state.similarItems = [];
+  state.similarLoading = false;
+  state.similarError = false;
+  state.similarVisible = false;
+  state.similarToken = (state.similarToken ?? 0) + 1;
+}
+
+export function statementExcerpt(statement, maximumLength = 180) {
+  const normalized = String(statement).replace(/\s+/gu, " ").trim();
+  return normalized.length <= maximumLength
+    ? normalized
+    : `${normalized.slice(0, maximumLength - 1).trimEnd()}…`;
 }
 
 export function feedbackPresentation(selectedLabel, correctLabel) {
@@ -167,6 +227,8 @@ function readFilters(form) {
     role: data.get("role"),
     subject: data.get("subject"),
     kind: data.get("kind"),
+    examId: data.get("examId"),
+    progress: data.get("progress"),
     deduplicate: data.get("deduplicate") === "on",
   };
 }
@@ -188,6 +250,15 @@ function initialize() {
     status: document.querySelector("#app-status"),
     reload: document.querySelector("#reload-button"),
     form: document.querySelector("#filters-form"),
+    clearFilters: document.querySelector("#clear-filters-button"),
+    filterSelects: {
+      organizer: document.querySelector("#organizer-filter"),
+      year: document.querySelector("#year-filter"),
+      role: document.querySelector("#role-filter"),
+      subject: document.querySelector("#subject-filter"),
+      kind: document.querySelector("#kind-filter"),
+      examId: document.querySelector("#exam-filter"),
+    },
     studyStatus: document.querySelector("#study-status"),
     card: document.querySelector("#question-card"),
     counter: document.querySelector("#question-counter"),
@@ -199,6 +270,11 @@ function initialize() {
     history: document.querySelector("#attempt-history"),
     previous: document.querySelector("#previous-button"),
     next: document.querySelector("#next-button"),
+    similarButton: document.querySelector("#similar-button"),
+    backToList: document.querySelector("#back-to-list-button"),
+    similarSection: document.querySelector("#similar-section"),
+    similarStatus: document.querySelector("#similar-status"),
+    similarList: document.querySelector("#similar-list"),
     stats: {
       attempts: document.querySelector("#stat-attempts"),
       correct: document.querySelector("#stat-correct"),
@@ -215,6 +291,12 @@ function initialize() {
     loading: false,
     error: false,
     answering: false,
+    openedQuestion: null,
+    similarItems: [],
+    similarLoading: false,
+    similarError: false,
+    similarVisible: false,
+    similarToken: 0,
   };
   const pager = createQuestionPager({
     fetchPage: ({ limit, offset }) => {
@@ -268,6 +350,61 @@ function initialize() {
     }
   }
 
+  const currentQuestion = () =>
+    state.openedQuestion ?? pager.snapshot().current;
+
+  function clearQuestionTransient() {
+    state.feedback = null;
+    state.history = [];
+    state.similarItems = [];
+    state.similarLoading = false;
+    state.similarError = false;
+    state.similarVisible = false;
+    state.similarToken++;
+  }
+
+  function renderSimilar() {
+    elements.similarSection.hidden = !state.similarVisible;
+    elements.similarList.replaceChildren();
+    if (!state.similarVisible) return;
+    const message = state.similarLoading
+      ? "Buscando questões semelhantes…"
+      : state.similarError
+      ? "Não foi possível carregar questões semelhantes."
+      : state.similarItems.length === 0
+      ? "Nenhuma questão semelhante encontrada."
+      : "";
+    setText(elements.similarStatus, message);
+    elements.similarStatus.hidden = message === "";
+    for (const item of state.similarItems) {
+      const listItem = document.createElement("li");
+      const metadata = document.createElement("p");
+      metadata.className = "similar-item-meta";
+      setText(
+        metadata,
+        [
+          item.exam.organizer,
+          item.exam.year,
+          item.subject,
+          `prova ${item.exam.externalId}`,
+          `questão ${item.number}`,
+        ].filter(Boolean).join(" · "),
+      );
+      const excerpt = document.createElement("p");
+      setText(excerpt, statementExcerpt(item.statement));
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      openButton.className = "button button--secondary";
+      setText(openButton, "Abrir questão");
+      openButton.addEventListener(
+        "click",
+        () => openSimilarQuestion(item.occurrenceId),
+      );
+      listItem.append(metadata, excerpt, openButton);
+      elements.similarList.append(listItem);
+    }
+  }
+
   function renderAlternatives(question) {
     elements.alternatives.replaceChildren();
     for (const alternative of question.alternatives) {
@@ -294,22 +431,26 @@ function initialize() {
 
   function renderQuestion() {
     const page = pager.snapshot();
+    const opened = state.openedQuestion !== null;
     const message = studyStateMessage({
       loading: state.loading,
       error: state.error,
-      total: page.total,
+      total: opened ? 1 : page.total,
     });
     setText(elements.studyStatus, message);
     elements.studyStatus.hidden = message === "";
     elements.card.hidden = message !== "";
-    setText(elements.counter, page.counter);
+    setText(elements.counter, opened ? "Questão semelhante" : page.counter);
     elements.previous.disabled = state.loading || state.answering ||
-      page.index <= 0;
+      opened || page.index <= 0;
     elements.next.disabled = state.loading || state.answering ||
-      page.total === 0 || page.index >= page.total - 1;
+      opened || page.total === 0 || page.index >= page.total - 1;
+    elements.backToList.hidden = !opened;
+    elements.similarButton.disabled = state.loading || state.answering ||
+      state.similarLoading;
     if (message !== "") return;
 
-    const question = page.current;
+    const question = currentQuestion();
     const metadata = [
       question.exam.organizer,
       question.exam.year,
@@ -340,6 +481,21 @@ function initialize() {
       elements.feedback.className = "answer-feedback";
     }
     renderHistory();
+    renderSimilar();
+  }
+
+  async function loadFilterOptions() {
+    const options = await requestJson("/api/filter-options");
+    const entries = filterSelectEntries(options);
+    const optionFactory = (value, label) => {
+      const option = document.createElement("option");
+      option.value = value;
+      setText(option, label);
+      return option;
+    };
+    for (const [name, select] of Object.entries(elements.filterSelects)) {
+      populateSelect(select, entries[name], optionFactory);
+    }
   }
 
   async function loadStatistics() {
@@ -352,9 +508,7 @@ function initialize() {
   async function loadData() {
     state.loading = true;
     state.error = false;
-    state.feedback = null;
-    state.history = [];
-    pager.reset();
+    resetStudyState(state, pager);
     renderQuestion();
     setApplicationStatus("Carregando", "loading");
     elements.reload.disabled = true;
@@ -373,7 +527,7 @@ function initialize() {
       renderQuestion();
       setApplicationStatus("Pronto", "ready");
     } catch {
-      pager.reset();
+      resetStudyState(state, pager);
       state.loading = false;
       state.error = true;
       renderQuestion();
@@ -384,7 +538,7 @@ function initialize() {
   }
 
   async function answerQuestion(selectedLabel) {
-    const question = pager.snapshot().current;
+    const question = currentQuestion();
     if (state.answering || state.feedback || question === null) {
       return;
     }
@@ -423,14 +577,67 @@ function initialize() {
     }
   }
 
-  async function navigate(direction) {
+  async function loadSimilarQuestions() {
+    const question = currentQuestion();
+    if (!question || state.similarLoading || state.answering) return;
+    const token = ++state.similarToken;
+    state.similarVisible = true;
+    state.similarLoading = true;
+    state.similarError = false;
+    state.similarItems = [];
+    renderQuestion();
+    try {
+      const items = await requestJson(
+        `/api/questions/${question.occurrenceId}/similar?limit=10`,
+      );
+      if (token !== state.similarToken) return;
+      state.similarItems = items;
+      state.similarLoading = false;
+      renderQuestion();
+    } catch {
+      if (token !== state.similarToken) return;
+      state.similarLoading = false;
+      state.similarError = true;
+      renderQuestion();
+    }
+  }
+
+  async function openSimilarQuestion(occurrenceId) {
     if (state.loading || state.answering) return;
+    state.loading = true;
+    elements.reload.disabled = true;
+    renderQuestion();
+    try {
+      const question = await requestJson(`/api/questions/${occurrenceId}`);
+      clearQuestionTransient();
+      state.openedQuestion = question;
+      state.loading = false;
+      renderQuestion();
+      setApplicationStatus("Questão semelhante aberta", "ready");
+    } catch {
+      state.loading = false;
+      renderQuestion();
+      setApplicationStatus("Erro ao abrir questão", "error");
+    } finally {
+      elements.reload.disabled = false;
+    }
+  }
+
+  function backToFilteredList() {
+    if (state.loading || state.answering || !state.openedQuestion) return;
+    state.openedQuestion = null;
+    clearQuestionTransient();
+    renderQuestion();
+    setApplicationStatus("Lista filtrada", "ready");
+  }
+
+  async function navigate(direction) {
+    if (state.loading || state.answering || state.openedQuestion) return;
     const page = pager.snapshot();
     const nextIndex = page.index + direction;
     if (nextIndex < 0 || nextIndex >= page.total) return;
 
-    state.feedback = null;
-    state.history = [];
+    clearQuestionTransient();
     const needsFetch = !pager.isCached(nextIndex);
     if (needsFetch) {
       state.loading = true;
@@ -451,14 +658,38 @@ function initialize() {
 
   elements.form.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (state.answering) return;
+    if (state.answering || state.loading) return;
     state.filters = readFilters(elements.form);
     loadData();
   });
-  elements.reload.addEventListener("click", loadData);
+  elements.clearFilters.addEventListener("click", () => {
+    if (state.answering || state.loading) return;
+    elements.form.reset();
+    state.filters = {};
+    loadData();
+  });
+  elements.reload.addEventListener("click", async () => {
+    if (state.answering || state.loading) return;
+    try {
+      await loadFilterOptions();
+      await loadData();
+    } catch {
+      state.loading = false;
+      state.error = true;
+      renderQuestion();
+      setApplicationStatus("Erro ao carregar", "error");
+    }
+  });
   elements.previous.addEventListener("click", () => navigate(-1));
   elements.next.addEventListener("click", () => navigate(1));
-  loadData();
+  elements.similarButton.addEventListener("click", loadSimilarQuestions);
+  elements.backToList.addEventListener("click", backToFilteredList);
+  loadFilterOptions().then(loadData).catch(() => {
+    state.loading = false;
+    state.error = true;
+    renderQuestion();
+    setApplicationStatus("Erro ao carregar", "error");
+  });
 }
 
 if (typeof document !== "undefined") {
