@@ -1,4 +1,4 @@
-const QUESTION_LIMIT = 100;
+export const QUESTION_PAGE_SIZE = 100;
 
 export function setText(target, value) {
   target.textContent = value === null || value === undefined
@@ -25,7 +25,10 @@ function appendNonEmpty(parameters, name, value) {
   if (normalized !== "") parameters.set(name, normalized);
 }
 
-export function buildQuestionSearch(filters = {}) {
+export function buildQuestionSearch(
+  filters = {},
+  { limit = QUESTION_PAGE_SIZE, offset = 0 } = {},
+) {
   const parameters = new URLSearchParams();
   appendNonEmpty(parameters, "organizer", filters.organizer);
   appendNonEmpty(parameters, "year", filters.year);
@@ -33,8 +36,93 @@ export function buildQuestionSearch(filters = {}) {
   appendNonEmpty(parameters, "subject", filters.subject);
   appendNonEmpty(parameters, "kind", filters.kind);
   if (filters.deduplicate === true) parameters.set("deduplicate", "true");
-  parameters.set("limit", String(QUESTION_LIMIT));
+  parameters.set("limit", String(limit));
+  parameters.set("offset", String(offset));
   return parameters.toString();
+}
+
+export function createQuestionPager({
+  fetchPage,
+  pageSize = QUESTION_PAGE_SIZE,
+}) {
+  if (typeof fetchPage !== "function") {
+    throw new TypeError("fetchPage deve ser uma função.");
+  }
+  if (!Number.isInteger(pageSize) || pageSize <= 0) {
+    throw new RangeError("pageSize deve ser um inteiro positivo.");
+  }
+
+  const pages = new Map();
+  let index = 0;
+  let total = 0;
+  let loaded = false;
+
+  const offsetFor = (targetIndex) =>
+    Math.floor(targetIndex / pageSize) * pageSize;
+
+  function current() {
+    if (!loaded || total === 0) return null;
+    const offset = offsetFor(index);
+    return pages.get(offset)?.[index - offset] ?? null;
+  }
+
+  function isCached(targetIndex) {
+    if (!Number.isInteger(targetIndex) || targetIndex < 0) return false;
+    const offset = offsetFor(targetIndex);
+    return pages.get(offset)?.[targetIndex - offset] !== undefined;
+  }
+
+  function snapshot() {
+    return {
+      index,
+      total,
+      current: current(),
+      counter: total === 0 ? "0 de 0" : `${index + 1} de ${total}`,
+      cachedPageCount: pages.size,
+    };
+  }
+
+  function reset() {
+    pages.clear();
+    index = 0;
+    total = 0;
+    loaded = false;
+  }
+
+  async function goTo(targetIndex) {
+    if (!Number.isInteger(targetIndex) || targetIndex < 0) return false;
+    if (loaded && targetIndex >= total) return false;
+
+    const offset = offsetFor(targetIndex);
+    if (!pages.has(offset)) {
+      const result = await fetchPage({ limit: pageSize, offset });
+      if (
+        !result || !Array.isArray(result.items) ||
+        !Number.isInteger(result.total) || result.total < 0
+      ) {
+        throw new Error("Resposta de paginação inválida.");
+      }
+      pages.set(offset, result.items);
+      total = result.total;
+      loaded = true;
+    }
+
+    if (targetIndex >= total) return false;
+    if (!isCached(targetIndex)) {
+      throw new Error("Página incompleta para o total informado.");
+    }
+    index = targetIndex;
+    return true;
+  }
+
+  return {
+    goTo,
+    isCached,
+    next: () => goTo(index + 1),
+    previous: () => goTo(index - 1),
+    reset,
+    snapshot,
+  };
 }
 
 export function buildStatisticsSearch(filters = {}) {
@@ -122,14 +210,18 @@ function initialize() {
   };
   const state = {
     filters: {},
-    questions: [],
-    index: 0,
     feedback: null,
     history: [],
     loading: false,
     error: false,
     answering: false,
   };
+  const pager = createQuestionPager({
+    fetchPage: ({ limit, offset }) => {
+      const query = buildQuestionSearch(state.filters, { limit, offset });
+      return requestJson(`/api/questions?${query}`);
+    },
+  });
 
   function setApplicationStatus(message, tone = "ready") {
     setText(elements.status, message);
@@ -201,25 +293,23 @@ function initialize() {
   }
 
   function renderQuestion() {
+    const page = pager.snapshot();
     const message = studyStateMessage({
       loading: state.loading,
       error: state.error,
-      total: state.questions.length,
+      total: page.total,
     });
     setText(elements.studyStatus, message);
     elements.studyStatus.hidden = message === "";
     elements.card.hidden = message !== "";
-    const total = state.questions.length;
-    setText(
-      elements.counter,
-      total === 0 ? "0 de 0" : `${state.index + 1} de ${total}`,
-    );
-    elements.previous.disabled = state.loading || state.index <= 0;
-    elements.next.disabled = state.loading || total === 0 ||
-      state.index >= total - 1;
+    setText(elements.counter, page.counter);
+    elements.previous.disabled = state.loading || state.answering ||
+      page.index <= 0;
+    elements.next.disabled = state.loading || state.answering ||
+      page.total === 0 || page.index >= page.total - 1;
     if (message !== "") return;
 
-    const question = state.questions[state.index];
+    const question = page.current;
     const metadata = [
       question.exam.organizer,
       question.exam.year,
@@ -264,29 +354,26 @@ function initialize() {
     state.error = false;
     state.feedback = null;
     state.history = [];
+    pager.reset();
     renderQuestion();
     setApplicationStatus("Carregando", "loading");
     elements.reload.disabled = true;
     try {
-      const questionQuery = buildQuestionSearch(state.filters);
       const statisticsQuery = buildStatisticsSearch(state.filters);
-      const [questions, statistics] = await Promise.all([
-        requestJson(`/api/questions?${questionQuery}`),
+      const [, statistics] = await Promise.all([
+        pager.goTo(0),
         requestJson(
           `/api/statistics${
             statisticsQuery === "" ? "" : `?${statisticsQuery}`
           }`,
         ),
       ]);
-      state.questions = questions.items;
-      state.index = 0;
       state.loading = false;
       renderStatistics(statistics);
       renderQuestion();
       setApplicationStatus("Pronto", "ready");
     } catch {
-      state.questions = [];
-      state.index = 0;
+      pager.reset();
       state.loading = false;
       state.error = true;
       renderQuestion();
@@ -297,11 +384,12 @@ function initialize() {
   }
 
   async function answerQuestion(selectedLabel) {
-    if (state.answering || state.feedback || state.questions.length === 0) {
+    const question = pager.snapshot().current;
+    if (state.answering || state.feedback || question === null) {
       return;
     }
-    const question = state.questions[state.index];
     state.answering = true;
+    elements.reload.disabled = true;
     renderQuestion();
     try {
       state.feedback = await requestJson(
@@ -312,17 +400,19 @@ function initialize() {
           body: JSON.stringify({ selectedLabel }),
         },
       );
-      state.answering = false;
       renderQuestion();
       const [history] = await Promise.all([
         requestJson(`/api/questions/${question.occurrenceId}/attempts`),
         loadStatistics(),
       ]);
       state.history = history;
+      state.answering = false;
+      elements.reload.disabled = false;
       renderQuestion();
       setApplicationStatus("Resposta registrada", "ready");
     } catch {
       state.answering = false;
+      elements.reload.disabled = false;
       renderQuestion();
       setApplicationStatus(
         state.feedback
@@ -333,17 +423,35 @@ function initialize() {
     }
   }
 
-  function navigate(direction) {
-    const nextIndex = state.index + direction;
-    if (nextIndex < 0 || nextIndex >= state.questions.length) return;
-    state.index = nextIndex;
+  async function navigate(direction) {
+    if (state.loading || state.answering) return;
+    const page = pager.snapshot();
+    const nextIndex = page.index + direction;
+    if (nextIndex < 0 || nextIndex >= page.total) return;
+
     state.feedback = null;
     state.history = [];
-    renderQuestion();
+    const needsFetch = !pager.isCached(nextIndex);
+    if (needsFetch) {
+      state.loading = true;
+      renderQuestion();
+      setApplicationStatus("Carregando", "loading");
+    }
+    try {
+      await pager.goTo(nextIndex);
+      state.loading = false;
+      renderQuestion();
+      setApplicationStatus("Pronto", "ready");
+    } catch {
+      state.loading = false;
+      renderQuestion();
+      setApplicationStatus("Erro ao carregar", "error");
+    }
   }
 
   elements.form.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (state.answering) return;
     state.filters = readFilters(elements.form);
     loadData();
   });

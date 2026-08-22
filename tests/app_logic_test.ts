@@ -1,6 +1,7 @@
 import {
   buildQuestionSearch,
   buildStatisticsSearch,
+  createQuestionPager,
   feedbackPresentation,
   formatPercent,
   setText,
@@ -34,11 +35,86 @@ Deno.test("lógica da UI monta filtros de questões e estatísticas", () => {
   assertEquals(questions.get("kind"), "certo-errado");
   assertEquals(questions.get("deduplicate"), "true");
   assertEquals(questions.get("limit"), "100");
+  assertEquals(questions.get("offset"), "0");
+
+  const secondPage = new URLSearchParams(
+    buildQuestionSearch(filters, { limit: 25, offset: 50 }),
+  );
+  assertEquals(secondPage.get("limit"), "25");
+  assertEquals(secondPage.get("offset"), "50");
 
   const statistics = new URLSearchParams(buildStatisticsSearch(filters));
   assertEquals(statistics.get("organizer"), "Banca Alpha");
   assertEquals(statistics.has("deduplicate"), false);
   assertEquals(statistics.has("limit"), false);
+});
+
+Deno.test("paginação mantém total global e busca a próxima página sob demanda", async () => {
+  const calls: Array<{ limit: number; offset: number }> = [];
+  const pager = createQuestionPager({
+    pageSize: 2,
+    fetchPage: ({ limit, offset }: { limit: number; offset: number }) => {
+      calls.push({ limit, offset });
+      return Promise.resolve({
+        total: 3,
+        items: offset === 0
+          ? [{ occurrenceId: 10 }, { occurrenceId: 11 }]
+          : [{ occurrenceId: 12 }],
+      });
+    },
+  });
+
+  await pager.goTo(0);
+  assertEquals(pager.snapshot().total, 3);
+  assertEquals(pager.snapshot().counter, "1 de 3");
+  assertEquals(calls, [{ limit: 2, offset: 0 }]);
+
+  await pager.next();
+  assertEquals(pager.snapshot().counter, "2 de 3");
+  assertEquals(calls.length, 1);
+
+  await pager.next();
+  assertEquals(pager.snapshot().current, { occurrenceId: 12 });
+  assertEquals(pager.snapshot().counter, "3 de 3");
+  assertEquals(calls, [
+    { limit: 2, offset: 0 },
+    { limit: 2, offset: 2 },
+  ]);
+
+  await pager.previous();
+  assertEquals(pager.snapshot().current, { occurrenceId: 11 });
+  assertEquals(pager.snapshot().counter, "2 de 3");
+  assertEquals(calls.length, 2);
+});
+
+Deno.test("aplicar filtros reinicia índice e cache de páginas", async () => {
+  let filter = "inicial";
+  const calls: Array<{ filter: string; offset: number }> = [];
+  const pager = createQuestionPager({
+    pageSize: 2,
+    fetchPage: ({ offset }: { offset: number }) => {
+      calls.push({ filter, offset });
+      return Promise.resolve({
+        total: 4,
+        items: [{ occurrenceId: offset + 1 }, { occurrenceId: offset + 2 }],
+      });
+    },
+  });
+
+  await pager.goTo(0);
+  await pager.goTo(2);
+  assertEquals(pager.snapshot().cachedPageCount, 2);
+
+  filter = "novo";
+  pager.reset();
+  await pager.goTo(0);
+  assertEquals(pager.snapshot().counter, "1 de 4");
+  assertEquals(pager.snapshot().cachedPageCount, 1);
+  assertEquals(calls, [
+    { filter: "inicial", offset: 0 },
+    { filter: "inicial", offset: 2 },
+    { filter: "novo", offset: 0 },
+  ]);
 });
 
 Deno.test("feedback puro diferencia resposta correta e incorreta", () => {
