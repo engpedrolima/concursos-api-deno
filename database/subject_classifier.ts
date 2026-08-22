@@ -1,4 +1,4 @@
-export const CLASSIFICATION_RULESET_VERSION = "1.0.0";
+export const CLASSIFICATION_RULESET_VERSION = "1.1.0";
 
 export const SUBJECT_TAXONOMY = [
   "Direito Administrativo",
@@ -7,11 +7,13 @@ export const SUBJECT_TAXONOMY = [
   "Processo Penal",
   "Direito Civil",
   "Processo Civil",
+  "Direito Previdenciário",
   "Direito do Trabalho",
   "Processo do Trabalho",
   "Direito Tributário",
   "Direito Empresarial",
   "Direitos Humanos",
+  "Atualidades",
   "Língua Portuguesa",
   "Raciocínio Lógico",
   "Informática",
@@ -39,7 +41,21 @@ interface WeightedTerm {
 interface SubjectRule {
   subject: Exclude<ClassifiedSubject, "Sem classificação">;
   terms: readonly WeightedTerm[];
+  minimumScore?: number;
 }
+
+/** Termos genéricos que nunca podem constituir uma regra isolada. */
+export const FORBIDDEN_ISOLATED_CLASSIFICATION_TERMS = [
+  "empresa",
+  "STF",
+  "prescrição",
+  "imigração",
+  "migração",
+  "integridade física",
+  "dispositivo",
+  "configuração",
+  "informação",
+] as const;
 
 export interface SubjectScore {
   subject: Exclude<ClassifiedSubject, "Sem classificação">;
@@ -68,12 +84,17 @@ const RULES: readonly SubjectRule[] = [
         "ato administrativo",
         "administração pública",
         "contrato administrativo",
+        "contratos administrativos",
+        "cadastro de inadimplentes",
         "improbidade administrativa",
         "licitação",
         "poder de polícia",
         "processo administrativo",
+        "rdc",
+        "regime diferenciado de contratações",
         "responsabilidade civil do estado",
         "serviço público",
+        "tribunal de contas da união",
       ], 3),
       ...terms([
         "autarquia",
@@ -91,14 +112,22 @@ const RULES: readonly SubjectRule[] = [
         "constituição federal",
         "controle de constitucionalidade",
         "direitos fundamentais",
+        "norma constitucional",
         "poder constituinte",
         "ação direta de inconstitucionalidade",
         "mandado de injunção",
         "supremo tribunal federal",
       ], 3),
       ...terms([
+        "cargos públicos",
+        "conselho nacional de justiça",
         "emenda constitucional",
         "competência legislativa",
+        "inconstitucional lei estadual",
+        "livre manifestação do pensamento",
+        "poder executivo",
+        "poder legislativo",
+        "presidente da república",
         "separação dos poderes",
         "remédio constitucional",
       ]),
@@ -148,16 +177,24 @@ const RULES: readonly SubjectRule[] = [
     terms: [
       ...terms([
         "código civil",
+        "disposição do próprio corpo",
+        "inadimplemento contratual",
         "negócio jurídico",
         "responsabilidade civil",
         "direitos reais",
         "sucessão hereditária",
       ], 3),
       ...terms([
+        "bem de família",
+        "caso fortuito",
+        "contrato de locação",
+        "fiador",
+        "força maior",
         "obrigação civil",
         "pessoa jurídica",
         "propriedade",
         "posse",
+        "titular a pretensão",
         "decadência",
       ]),
     ],
@@ -166,7 +203,10 @@ const RULES: readonly SubjectRule[] = [
     subject: "Processo Civil",
     terms: [
       ...terms([
+        "ações de despejo",
         "código de processo civil",
+        "cumprir a sentença",
+        "processo civil",
         "tutela provisória",
         "coisa julgada",
         "cumprimento de sentença",
@@ -175,10 +215,34 @@ const RULES: readonly SubjectRule[] = [
       ...terms([
         "agravo de instrumento",
         "apelação",
+        "cpc",
+        "curadora especial",
+        "intimação do devedor",
         "litisconsórcio",
+        "oportunidade de se manifestar",
+        "procedimentos judiciais",
         "execução civil",
         "recurso especial",
       ]),
+    ],
+  },
+  {
+    subject: "Direito Previdenciário",
+    minimumScore: 3,
+    terms: [
+      ...terms([
+        "auxílio acidente",
+        "regime geral de previdência social",
+        "regime próprio de previdência social",
+        "segurado obrigatório",
+      ], 4),
+      ...terms([
+        "carência previdenciária",
+        "compensação previdenciária",
+        "contribuições mensais",
+        "previdência social",
+        "rgps",
+      ], 3),
     ],
   },
   {
@@ -202,9 +266,15 @@ const RULES: readonly SubjectRule[] = [
   },
   {
     subject: "Processo do Trabalho",
+    minimumScore: 3,
     terms: [
       ...terms([
+        "agravo de petição",
+        "empresa reclamada",
+        "garantia do juízo",
+        "juiz trabalhista",
         "justiça do trabalho",
+        "processo do trabalho",
         "reclamação trabalhista",
         "recurso ordinário trabalhista",
         "tribunal regional do trabalho",
@@ -212,8 +282,12 @@ const RULES: readonly SubjectRule[] = [
       ], 3),
       ...terms([
         "audiência trabalhista",
+        "custos legis",
         "dissídio coletivo",
         "competência trabalhista",
+        "reclamado",
+        "remessa de ofício",
+        "revelia",
       ]),
     ],
   },
@@ -239,6 +313,7 @@ const RULES: readonly SubjectRule[] = [
   },
   {
     subject: "Direito Empresarial",
+    minimumScore: 3,
     terms: [
       ...terms([
         "sociedade empresária",
@@ -246,13 +321,13 @@ const RULES: readonly SubjectRule[] = [
         "título de crédito",
         "estabelecimento empresarial",
         "sociedade anônima",
+        "falência empresarial",
       ], 3),
       ...terms([
-        "empresário",
         "falência",
         "cheque",
         "duplicata",
-      ]),
+      ], 3),
     ],
   },
   {
@@ -260,6 +335,8 @@ const RULES: readonly SubjectRule[] = [
     terms: [
       ...terms([
         "direitos humanos",
+        "integridade física dos presos",
+        "morte do detento",
         "sistema interamericano",
         "corte interamericana",
         "convenção americana de direitos humanos",
@@ -272,23 +349,56 @@ const RULES: readonly SubjectRule[] = [
     ],
   },
   {
+    subject: "Atualidades",
+    minimumScore: 3,
+    terms: [
+      ...terms([
+        "emmanuel macron",
+        "jean luc mélenchon",
+        "marine le pen",
+        "nicolás maduro",
+        "primeiro turno das eleições",
+        "sociedade francesa atual",
+        "venezuelanos",
+        "venezuela",
+      ], 4),
+    ],
+  },
+  {
     subject: "Língua Portuguesa",
     terms: [
       ...terms([
+        "acentuação gráfica",
+        "coerência textual",
+        "correção gramatical",
+        "forma verbal",
         "interpretação do texto",
+        "leitura do texto",
+        "modo subjuntivo",
+        "período do texto",
+        "redação oficial",
         "sentido do texto",
+        "sua senhoria",
         "concordância verbal",
         "concordância nominal",
         "regência verbal",
-      ], 3),
+      ], 5),
       ...terms([
         "crase",
+        "memorando",
         "ortografia",
         "pontuação",
         "pronome",
+        "próclise",
+        "reescrito",
+        "tipologia textual",
+        "valor comparativo",
+        "vocábulo",
         "oração subordinada",
+        "partícula se",
         "coesão textual",
-      ]),
+        "tipologia",
+      ], 3),
     ],
   },
   {
@@ -312,6 +422,11 @@ const RULES: readonly SubjectRule[] = [
     subject: "Informática",
     terms: [
       ...terms([
+        "célula selecionada",
+        "compartilhar o chrome",
+        "engenharia social",
+        "google chrome",
+        "navegação anônima",
         "segurança da informação",
         "correio eletrônico",
         "sistema operacional",
@@ -330,8 +445,20 @@ const RULES: readonly SubjectRule[] = [
   },
   {
     subject: "Legislação Especial",
+    minimumScore: 3,
     terms: [
       ...terms([
+        "código de ética odontológica",
+        "conselho federal de odontologia",
+        "conselho nacional de odontologia",
+        "conselho regional de odontologia",
+        "exercício da odontologia",
+        "penalidade de cassação",
+        "resolução cfo",
+        "técnico em prótese dentária",
+        "técnicos em prótese dentária",
+        "técnico em saúde bucal",
+        "técnicos em saúde bucal",
         "lei maria da penha",
         "estatuto da criança e do adolescente",
         "estatuto do idoso",
@@ -341,10 +468,21 @@ const RULES: readonly SubjectRule[] = [
         "abuso de autoridade",
       ], 4),
       ...terms([
+        "cfo",
+        "cirurgião dentista",
+        "especialidades na área da odontologia",
+        "estagiário de odontologia",
+        "exercício profissional",
+        "infração ética",
         "legislação especial",
+        "prontuário do paciente",
         "estatuto do desarmamento",
         "execução penal",
       ], 3),
+      ...terms([
+        "anualidade",
+        "inscrição secundária",
+      ], 2),
     ],
   },
 ];
@@ -359,6 +497,19 @@ export function normalizeClassificationText(value: string): string {
 
 const containsTerm = (text: string, term: string): boolean =>
   ` ${text} `.includes(` ${normalizeClassificationText(term)} `);
+
+const forbiddenIsolatedTerms = new Set(
+  FORBIDDEN_ISOLATED_CLASSIFICATION_TERMS.map(normalizeClassificationText),
+);
+for (const rule of RULES) {
+  for (const term of rule.terms) {
+    if (forbiddenIsolatedTerms.has(normalizeClassificationText(term.term))) {
+      throw new Error(
+        `Regra inválida: termo genérico isolado não permitido: ${term.term}.`,
+      );
+    }
+  }
+}
 
 export function classifyQuestionSubject(
   input: SubjectClassificationInput,
@@ -375,11 +526,22 @@ export function classifyQuestionSubject(
       containsTerm(normalizedText, term.term)
     );
     if (matched.length === 0) continue;
+    const score = matched.reduce((total, term) => total + term.weight, 0);
+    if (score < (rule.minimumScore ?? 1)) continue;
     scores.push({
       subject: rule.subject,
-      score: matched.reduce((total, term) => total + term.weight, 0),
+      score,
       matchedTerms: matched.map((term) => term.term),
     });
+  }
+  const previdenciario = scores.some((score) =>
+    score.subject === "Direito Previdenciário"
+  );
+  if (previdenciario) {
+    const trabalho = scores.findIndex((score) =>
+      score.subject === "Direito do Trabalho"
+    );
+    if (trabalho >= 0) scores.splice(trabalho, 1);
   }
   scores.sort((left, right) => {
     const score = right.score - left.score;
@@ -387,6 +549,10 @@ export function classifyQuestionSubject(
     return SUBJECT_TAXONOMY.indexOf(left.subject) -
       SUBJECT_TAXONOMY.indexOf(right.subject);
   });
+  const portuguese = scores.findIndex((score) =>
+    score.subject === "Língua Portuguesa" && score.score >= 5
+  );
+  if (portuguese > 0) scores.unshift(...scores.splice(portuguese, 1));
   const winner = scores[0];
   return {
     rulesetVersion: CLASSIFICATION_RULESET_VERSION,

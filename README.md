@@ -95,6 +95,12 @@ contagens por assunto e quantas ocorrências ficaram como `Sem classificação`.
 A classificação usa apenas o enunciado e as alternativas armazenados no banco;
 não acessa rede, serviços de IA ou os PDFs originais.
 
+O ruleset `1.1.0` inclui `Atualidades` e `Direito Previdenciário`, prioriza
+expressões compostas e mantém termos genéricos isolados fora das regras. Há três
+ocorrências da prova `cfo-2017-procurador` reservadas para auditoria futura do
+parser: Q80, Q85 e Q100 apresentam indícios de cabeçalho do bloco seguinte
+anexado ao enunciado. O classificador não remove nem corrige esse conteúdo.
+
 ## Camada de leitura
 
 `database/questions.ts` lista e obtém ocorrências para estudo sem expor o
